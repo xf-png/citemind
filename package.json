@@ -1,0 +1,11 @@
+{
+  "name": "citemind-evidence-workspace",
+  "version": "1.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Browser-local Chinese knowledge retrieval with traceable evidence and optional semantic AI",
+  "scripts": {
+    "test": "node --test tests/*.test.mjs",
+    "start": "python -m http.server 4173 --bind 127.0.0.1 --directory dist"
+  }
+}
