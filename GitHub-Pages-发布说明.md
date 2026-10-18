@@ -1,10 +1,10 @@
 # CiteMind GitHub Pages 发布说明
 
-此发布包已为 GitHub 账号 xf-png 准备，尚未上传到 GitHub，也没有创建新的公网地址。建议仓库名为 citemind，实际仓库名以授权后的检查或你的选择为准。
+2026 年 10 月 19 日已成功发布。在线体验：https://xf-png.github.io/citemind/ 。源码仓库：https://github.com/xf-png/citemind 。GitHub Actions 的 24 项功能检查和发布步骤通过，公开首页与九个静态资源通过访问及内容校验。
 
 ## 通过授权继续发布
 
-在 Codex 中安装并授权 GitHub 连接后，可继续创建仓库、推送本发布包并启用 Pages。不要在聊天或代码中提供账号密码。本包不包含登录凭据、原 Sites 项目标识或用户导入资料。
+Codex GitHub 插件安装时读取远程插件信息失败，后续已通过 GitHub 官方 CLI 完成 xf-png 账号授权和发布。当前无需安装该插件即可访问网页或使用 GitHub 网页管理仓库。不要在聊天或代码中提供账号密码。本包不包含登录凭据、原 Sites 项目标识或用户导入资料。
 
 GitHub Free 的 Pages 使用公开仓库，因此此方案会公开这些项目源码。应用的访客资料仍保存在访客自己的浏览器，不会随发布上传到仓库。
 
@@ -17,7 +17,7 @@ GitHub Free 的 Pages 使用公开仓库，因此此方案会公开这些项目�
 5. 工作流先运行 24 项本地模块检查，成功后上传 dist 并部署。最终地址以工作流环境或 Settings → Pages 显示的实际结果为准。
 6. 使用未登录浏览器核对首页、示例提问、原文引用、PDF 导入、AI 模型加载以及保存恢复，确认通过后再将链接写入简历。
 
-如果使用建议仓库名，预计地址格式为 https://xf-png.github.io/citemind/ 。这是待发布地址，不代表已经可以访问；改名后路径也会变化。
+当前实际发布地址为 https://xf-png.github.io/citemind/ ，已验证返回 HTTP 200。后续 main 分支更新会自动运行工作流并更新同一站点。
 
 ## 这个方案解决什么
 
@@ -36,3 +36,4 @@ GitHub Free 的 Pages 使用公开仓库，因此此方案会公开这些项目�
 https://docs.github.com/en/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages
 
 https://docs.github.com/en/pages/getting-started-with-github-pages/configuring-a-publishing-source-for-your-github-pages-site
+

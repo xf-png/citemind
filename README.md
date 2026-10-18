@@ -2,7 +2,9 @@
 
 浏览器端 AI 知识工作台：导入资料，按问题检索相关原文，通过引用和 PDF 页码核对出处。
 
-当前可通过本地启动体验。[原托管地址](https://citemind-ai-xxf.eagerrose256.chatgpt.site)有部署记录，但目前受到 Cloudflare 拦截，无法正常使用；不能作为有效的简历演示链接。公开演示地址待重新验证。
+**在线体验：[打开 CiteMind](https://xf-png.github.io/citemind/)** · [源码仓库](https://github.com/xf-png/citemind) · [在线访问与验证说明](docs/在线访问说明.md)
+
+2026 年 10 月 19 日已发布至 GitHub Pages，验证首页及九个静态资源返回成功、内容与源码一致，并执行线上检索模块核对回答和引用。GitHub Actions 中的 24 项功能检查通过。直接打开链接即可使用示例知识库，无需安装软件或配置密钥。首次使用 PDF 或本地 AI 仍需下载公共组件和模型。
 
 ## 已实现功能
 
