@@ -61,7 +61,7 @@ function makeSession(timeoutMs) {
     if (typeof Worker === "undefined" || typeof WebAssembly === "undefined") {
       throw new Error("当前浏览器不支持本地模型，请使用新版 Chrome、Edge、Firefox 或 Safari。");
     }
-    session.worker = new Worker(new URL("./model.js", import.meta.url), { type: "module" });
+    session.worker = new Worker(new URL(import.meta.url), { type: "module" });
     session.worker.onmessage = ({ data }) => {
       if (session.failed) return;
       if (data.type === "progress") {

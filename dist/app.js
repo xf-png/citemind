@@ -1,5 +1,5 @@
 import { DEMO_DOCS, prepareDocuments, answerQuestion, configureEmbedder } from './engine.js';
-import { loadLocalModel, unloadLocalModel } from './model.js';
+import { loadLocalModel, unloadLocalModel } from './model.js?v=1.2.0';
 import { validateLibrary, serializeBackup, parseBackup, readLibrary, writeLibrary, clearLibrary, persistenceEnabled, setPersistenceEnabled } from './storage.js';
 
 const $ = selector => document.querySelector(selector);
@@ -166,7 +166,7 @@ async function importFiles(files) {
       $('#import-status').textContent = `正在读取 ${index + 1}/${selected.length}：${file.name}`;
       const doc = { id: crypto.randomUUID(), title: file.name.replace(/\.(pdf|txt|md|markdown)$/i, '') };
       if (/\.pdf$/i.test(file.name)) {
-        const { parsePdfFile } = await import('./pdf.js');
+        const { parsePdfFile } = await import('./pdf.js?v=1.2.0');
         const parsed = await parsePdfFile(file, { signal, onProgress: event => { $('#import-status').textContent = `${file.name} · ${event.message || '正在解析…'}`; } });
         Object.assign(doc, { type: 'pdf', text: parsed.text, pages: parsed.pages });
       } else { try { doc.text = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer()); } catch { throw new Error(`${file.name} 不是 UTF-8 文本，请转换编码后导入。`); } }
