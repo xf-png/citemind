@@ -25,6 +25,8 @@ jobs:
         uses: actions/checkout@v6
       - name: Verify retrieval and storage
         run: node --test tests/engine.test.mjs tests/storage.test.mjs
+      - name: Verify bundled model and PDF resources
+        run: node tools/verify-assets.mjs
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload static application

@@ -1,0 +1,5 @@
+# Vendor manifests address the exact upstream bytes, including line endings.
+dist/vendor/** -text
+dist/models/** -text
+dist/licenses/** -text
+*.pdf -text

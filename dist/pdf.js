@@ -1,6 +1,8 @@
 /** Selectable-text PDF import. No OCR, PDF upload, embedded-script execution, or rendering. */
 const PDFJS_VERSION = '6.4.299';
-const PDFJS_CDN = `https://cdn.jsdelivr.net/npm/pdfjs-dist@${PDFJS_VERSION}/`;
+// Resolve from this module, so Pages deployments under /citemind/ keep every
+// parser, worker, font, CMap and decoder request on the same site.
+const PDFJS_BASE_URL = new URL(`./vendor/pdfjs/${PDFJS_VERSION}/`, import.meta.url).href;
 const MAX_BYTES = 10 * 1024 * 1024;
 const MAX_PAGES = 80;
 const MAX_TEXT = 100000;
@@ -27,13 +29,13 @@ function loadLibrary() {
   if (!libraryPromise) {
     // Retry a failed module fetch with a fresh URL while keeping its version pinned.
     const suffix = libraryAttempt ? `?retry=${libraryAttempt}` : '';
-    libraryPromise = import(`${PDFJS_CDN}build/pdf.min.mjs${suffix}`).then(pdfjs => {
-      pdfjs.GlobalWorkerOptions.workerSrc = `${PDFJS_CDN}build/pdf.worker.min.mjs`;
+    libraryPromise = import(`${PDFJS_BASE_URL}build/pdf.min.mjs${suffix}`).then(pdfjs => {
+      pdfjs.GlobalWorkerOptions.workerSrc = `${PDFJS_BASE_URL}build/pdf.worker.min.mjs`;
       return pdfjs;
     }).catch(() => {
       libraryPromise = null;
       libraryAttempt++;
-      throw pdfError('PDF_RUNTIME', 'PDF 组件加载失败，请检查网络后重试。首次导入需要从公共 CDN 下载组件，文件不会上传。');
+      throw pdfError('PDF_RUNTIME', '本站 PDF 组件加载失败，请检查网络后重试。文件不会上传。');
     });
   }
   return libraryPromise;
@@ -49,7 +51,8 @@ function describeError(error) {
 }
 
 /**
- * Extract text locally with Mozilla PDF.js 6.4.299, loaded only on first PDF import.
+ * Extract text locally with same-origin Mozilla PDF.js 6.4.299, loaded only on
+ * first PDF import. Original vendor files and licenses: vendor/pdfjs/.
  * Pages follow physical PDF page numbers, including empty pages. start/end are
  * UTF-16 offsets into text; page.text === text.slice(page.start, page.end).
  * Page separators are two newlines. Complex column/table reading order follows
@@ -90,16 +93,17 @@ export async function parsePdfFile(file, { onProgress, signal } = {}) {
     if (buffer.byteLength > MAX_BYTES) throw pdfError('PDF_TOO_LARGE', '单份 PDF 最大 10 MB，请压缩或拆分后导入。');
     const header = new TextDecoder('latin1').decode(new Uint8Array(buffer, 0, Math.min(1024, buffer.byteLength)));
     if (!header.includes('%PDF-')) throw pdfError('PDF_INVALID', '文件不是有效的 PDF，请确认格式后重新导入。');
-    progress(onProgress, { status: 'loading', message: '正在准备 PDF 解析组件，首次使用需要下载…' });
+    progress(onProgress, { status: 'loading', message: '正在准备本站 PDF 解析组件…' });
     const pdfjs = await wait(loadLibrary());
     worker = new pdfjs.PDFWorker({ name: 'citemind-pdf-import' });
     task = pdfjs.getDocument({
       data: new Uint8Array(buffer),
       worker,
-      cMapUrl: `${PDFJS_CDN}cmaps/`,
+      cMapUrl: `${PDFJS_BASE_URL}cmaps/`,
       cMapPacked: true,
-      standardFontDataUrl: `${PDFJS_CDN}standard_fonts/`,
-      wasmUrl: `${PDFJS_CDN}wasm/`,
+      standardFontDataUrl: `${PDFJS_BASE_URL}standard_fonts/`,
+      wasmUrl: `${PDFJS_BASE_URL}wasm/`,
+      iccUrl: `${PDFJS_BASE_URL}iccs/`,
       useWorkerFetch: true,
       disableFontFace: true,
       stopAtErrors: true,

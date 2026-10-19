@@ -1,15 +1,16 @@
 /**
  * Optional browser-local semantic embeddings. No text is sent to a server.
- * Only public runtime/model assets are downloaded, on the user's first opt-in.
+ * Runtime/model assets are served by this website, on the user's first opt-in.
  * Official docs: https://huggingface.co/docs/transformers.js/v3.8.1/index
  * Model: https://huggingface.co/Xenova/bge-small-zh-v1.5
  */
 // The bundled entry includes ONNX Runtime; transformers.web.min.js requires
 // bare-specifier imports and cannot run directly in a buildless browser app.
-const RUNTIME = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/transformers.min.js";
-const WASM_PATH = "https://cdn.jsdelivr.net/npm/@huggingface/transformers@3.8.1/dist/";
 const MODEL = "Xenova/bge-small-zh-v1.5";
 const REVISION = "75c43b069aac4d136ba6bc1122f995fedcfd2781";
+const RUNTIME = new URL("./vendor/transformers/3.8.1/transformers.min.js", import.meta.url).href;
+const WASM_PATH = new URL("./vendor/transformers/3.8.1/", import.meta.url).href;
+const MODEL_PATH = new URL(`./models/${REVISION}/`, import.meta.url).href;
 const LOAD_TIMEOUT = 600_000;
 const EMBED_TIMEOUT = 120_000;
 let activeSession = null;
@@ -169,16 +170,19 @@ if (typeof WorkerGlobalScope !== "undefined" && globalThis instanceof WorkerGlob
   const sendProgress = (event) => globalThis.postMessage({ type: "progress", event });
 
   async function initialize() {
-    sendProgress({ status: "loading", message: "正在下载 AI 运行组件…" });
+    sendProgress({ status: "loading", message: "正在从本站加载 AI 运行组件…" });
     const { pipeline, env } = await import(RUNTIME);
-    env.allowLocalModels = false;
-    env.useBrowserCache = true;
+    env.allowLocalModels = true;
+    env.allowRemoteModels = false;
+    env.localModelPath = MODEL_PATH;
+    env.useBrowserCache = typeof caches !== "undefined";
     env.backends.onnx.wasm.wasmPaths = WASM_PATH;
     // Static hosting does not require COOP/COEP or SharedArrayBuffer.
     env.backends.onnx.wasm.numThreads = 1;
     env.backends.onnx.wasm.proxy = false;
     extractor = await pipeline("feature-extraction", MODEL, {
       revision: REVISION,
+      local_files_only: true,
       dtype: "q8",
       device: "wasm",
       progress_callback: (event) => {
@@ -224,7 +228,7 @@ if (typeof WorkerGlobalScope !== "undefined" && globalThis instanceof WorkerGlob
     if (data.type === "load") {
       if (!starting) {
         starting = initialize().catch(() => {
-          globalThis.postMessage({ type: "fatal", message: "模型加载失败。请确认可以访问 jsDelivr 与 Hugging Face 后重试；关键词体验仍可使用。" });
+          globalThis.postMessage({ type: "fatal", message: "模型加载失败。请检查网络后重试，或刷新网页重新下载本站模型；快速检索仍可使用。" });
         });
       }
     } else if (data.type === "embed") {

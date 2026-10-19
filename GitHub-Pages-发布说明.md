@@ -14,18 +14,18 @@ GitHub Free 的 Pages 使用公开仓库，因此此方案会公开这些项目�
 2. 解压本包，将完整文件结构提交到 main 分支。保留 .github/workflows/deploy-pages.yml 和 dist 目录，不能只上传 ZIP 文件本身。
 3. 打开仓库 Settings → Pages，在 Build and deployment 的 Source 中选择 GitHub Actions。
 4. 打开 Actions → Deploy CiteMind to GitHub Pages。首轮若因尚未启用 Pages 而失败，在完成上一步后手动选择 Run workflow。
-5. 工作流先运行 24 项本地模块检查，成功后上传 dist 并部署。最终地址以工作流环境或 Settings → Pages 显示的实际结果为准。
+5. 工作流先运行 24 项模块检查和全部第三方资源的完整性校验，成功后上传完整 dist 并部署。最终地址以工作流环境或 Settings → Pages 显示的实际结果为准。
 6. 使用未登录浏览器核对首页、示例提问、原文引用、PDF 导入、AI 模型加载以及保存恢复，确认通过后再将链接写入简历。
 
 当前实际发布地址为 https://xf-png.github.io/citemind/ ，已验证返回 HTTP 200。后续 main 分支更新会自动运行工作流并更新同一站点。
 
 ## 这个方案解决什么
 
-部署后使用 GitHub Pages 的托管域名，不再依赖原来的 chatgpt.site 入口。不过实际网络可达性仍需验证，不能保证所有网络都不会拦截。首次 PDF 和 AI 仍需访问 jsDelivr 与 Hugging Face，首页可打开也不等于外部组件已加载成功。
+部署后使用 GitHub Pages 的托管域名，不再依赖原来的 chatgpt.site 入口。不过实际网络可达性仍需验证，不能保证所有网络都不会拦截。v1.2 的 PDF、模型和运行组件随本站部署，不再从 jsDelivr 或 Hugging Face 加载；首次 AI 资源约 47 MB，仍受当前网络速度影响。
 
 ## 目录
 
-- dist：九个实际网站文件，Pages 只发布这个目录。
+- dist：页面、vendor、models、资源清单与第三方许可；必须完整发布此目录。
 - tests：16 项检索与 8 项存储检查，无需安装 npm 依赖。
 - .github/workflows/deploy-pages.yml：测试与发布流程。
 - docs：项目使用手册。

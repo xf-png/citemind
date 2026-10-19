@@ -1,0 +1,33 @@
+CiteMind PDF.js redistribution notice
+
+PDF.js / pdfjs-dist 6.4.299
+Copyright Mozilla Foundation and individual contributors.
+Project: https://github.com/mozilla/pdf.js
+Distribution: https://registry.npmjs.org/pdfjs-dist/-/pdfjs-dist-6.4.299.tgz
+License: Apache License 2.0; see 6.4.299/LICENSE.
+
+CiteMind serves the original, unmodified prebuilt display module and worker,
+character maps, standard fonts, image-decoder WASM/fallbacks, and ICC profile
+from the version-pinned npm package. The npm tarball was verified against its
+published SHA-512 dist.integrity value before selecting the files. Individual
+resource SHA-256 hashes, byte sizes and upstream paths are in ../../pdf-assets.json.
+
+Additional upstream licenses retained without modification:
+- 6.4.299/cmaps/LICENSE
+- 6.4.299/standard_fonts/LICENSE_FOXIT
+- 6.4.299/standard_fonts/LICENSE_LIBERATION
+- 6.4.299/wasm/LICENSE_JBIG2
+- 6.4.299/wasm/LICENSE_OPENJPEG
+- 6.4.299/wasm/LICENSE_PDFJS_JBIG2
+- 6.4.299/wasm/LICENSE_PDFJS_OPENJPEG
+- 6.4.299/wasm/LICENSE_PDFJS_QCMS
+- 6.4.299/wasm/LICENSE_QCMS
+- 6.4.299/iccs/LICENSE
+
+The published npm package contains no root NOTICE file. This supplemental notice
+was written for CiteMind packaging and is not an upstream NOTICE. Original license
+and attribution headers in the redistributed files have been preserved.
+No viewer, PDF samples, source maps, legacy builds or npm dependencies are bundled.
+
+Only the CiteMind integration (dist/pdf.js) changes its resource URLs to use this
+site. PDF files continue to be read locally; this change adds no upload service.
