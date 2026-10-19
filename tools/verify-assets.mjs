@@ -29,9 +29,17 @@ async function verify() {
     if (base) {
       const url = new URL(asset.path, base);
       assert.equal(url.origin, base.origin, 'Every resource must have the website origin');
-      const response = await fetch(url, { signal: AbortSignal.timeout(45000) });
-      assert.equal(response.status, 200, `${asset.path}: public HTTP status`);
-      const remote = Buffer.from(await response.arrayBuffer());
+      let response;
+      let remote;
+      try {
+        // Model/WASM files are tens of MB; a short text-file deadline can
+        // incorrectly fail a working download on a slower connection.
+        response = await fetch(url, { signal: AbortSignal.timeout(asset.bytes > 1024 * 1024 ? 300000 : 45000) });
+        assert.equal(response.status, 200, `${asset.path}: public HTTP status`);
+        remote = Buffer.from(await response.arrayBuffer());
+      } catch (error) {
+        throw new Error(`${asset.path}: public download failed (${error.message})`, { cause: error });
+      }
       assert.equal(remote.length, asset.bytes, `${asset.path}: public byte length`);
       assert.equal(createHash('sha256').update(remote).digest('hex'), asset.sha256, `${asset.path}: public SHA256`);
       if (/\.(js|mjs)$/.test(asset.path)) assert.match(response.headers.get('content-type'), /javascript/, 'Module MIME');
