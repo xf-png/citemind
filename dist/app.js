@@ -1,6 +1,8 @@
 import { DEMO_DOCS, prepareDocuments, answerQuestion, configureEmbedder } from './engine.js';
 import { loadLocalModel, unloadLocalModel } from './model.js?v=1.2.0';
-import { validateLibrary, serializeBackup, parseBackup, readLibrary, writeLibrary, clearLibrary, persistenceEnabled, setPersistenceEnabled } from './storage.js';
+import { validateLibrary, serializeBackup, parseWorkspaceBackup, readLibrary, writeLibrary, clearLibrary, persistenceEnabled, setPersistenceEnabled } from './storage.js';
+import { emptyResearch, validateResearch, mergeResearch, collectEvidence as collectEvidenceForAnswer } from './research.js';
+import { mountResearchWorkspace } from './research-ui.js';
 
 const $ = selector => document.querySelector(selector);
 const state = { documents: prepareDocuments(DEMO_DOCS), mode: 'extractive', busy: false, history: [], modelReady: false, loading: false, modelAbort: null, selectedDoc: null, importing: false, importAbort: null, initializing: true, persist: persistenceEnabled(), saving: false, persistenceBusy: false, saveError: '', savedAt: null };
@@ -8,6 +10,9 @@ let toastTimer;
 let saveQueue = Promise.resolve();
 let persistenceRevision = 0;
 let saveSequence = 0;
+state.research = emptyResearch();
+state.selectedIds = new Set(state.documents.map(doc => doc.id));
+let researchWorkspace;
 const icon = name => { const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg'); const use = document.createElementNS('http://www.w3.org/2000/svg', 'use'); use.setAttribute('href', `#i-${name}`); svg.append(use); return svg; };
 function node(tag, className, text) { const n = document.createElement(tag); if (className) n.className = className; if (text !== undefined) n.textContent = text; return n; }
 function toast(message) { const t = $('#toast'); t.textContent = message; t.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => { t.hidden = true; }, 4500); }
@@ -19,15 +24,29 @@ function setBusy(busy) { state.busy = busy; updateControls(); }
 
 function renderDocuments() {
   const list = $('#document-list'); list.replaceChildren();
-  for (const doc of state.documents) {
+  const query = $('#document-search').value.trim().toLocaleLowerCase();
+  for (const doc of state.documents.filter(doc => !query || doc.title.toLocaleLowerCase().includes(query))) {
+    const row = node('div', 'document-row');
+    const toggle = node('input', 'source-toggle'); toggle.type = 'checkbox'; toggle.checked = state.selectedIds.has(doc.id); toggle.setAttribute('aria-label', `参与检索：${doc.title}`);
+    toggle.addEventListener('change', () => { if (isBusy()) { toggle.checked = state.selectedIds.has(doc.id); return; } if (toggle.checked) state.selectedIds.add(doc.id); else state.selectedIds.delete(doc.id); renderScope(); researchWorkspace?.refresh({ documentsChanged: true }); });
     const button = node('button', 'document-item'); button.title = `查看：${doc.title}`;
     const file = node('span', 'file-icon'); file.append(icon('doc'));
     const details = node('div'); details.append(node('strong', '', doc.title), node('small', '', doc.type === 'pdf' ? `PDF · ${doc.pages.length} 页 · ${doc.chunks.length} 个片段` : `${doc.chunks.length} 个片段 · ${doc.text.length.toLocaleString('zh-CN')} 字符`));
-    button.append(file, details); button.addEventListener('click', () => openDocument(doc.id)); list.append(button);
+    button.append(file, details); button.addEventListener('click', () => openDocument(doc.id)); row.append(toggle, button); list.append(row);
   }
+  if (!list.childNodes.length) list.append(node('p', 'research-help', state.documents.length ? '没有匹配的资料名称。' : '先添加一份资料。'));
   $('#doc-count').textContent = state.documents.length;
-  $('#composer-doc-count').textContent = `${state.documents.length} 份资料已就绪`;
+  renderScope();
   renderStorage();
+}
+
+function renderScope() {
+  const count = state.selectedIds.size;
+  $('#source-scope-count').textContent = `已选 ${count} / ${state.documents.length}`;
+  $('#composer-doc-count').textContent = `检索 ${count} / ${state.documents.length} 份资料`;
+  $('#composer-doc-count').classList.toggle('scope-empty', !count);
+  $('#select-all-sources').disabled = !state.documents.length || count === state.documents.length;
+  $('#select-no-sources').disabled = !count;
 }
 
 function openDocument(id, excerpt, source = {}) {
@@ -53,7 +72,7 @@ function openDocument(id, excerpt, source = {}) {
 
 const initialEvidence = $('#evidence-body').cloneNode(true);
 function clearConversation() { state.history = []; $('#messages').replaceChildren(); $('#welcome').hidden = false; $('#evidence-body').replaceChildren(...Array.from(initialEvidence.childNodes, n => n.cloneNode(true))); $('#evidence-count').textContent = '0'; $('#chat-scroll').scrollTop = 0; }
-function replaceDocuments(docs, { save = true } = {}) { state.documents = validateLibrary(docs); renderDocuments(); clearConversation(); if (save) queueSave(); }
+function replaceDocuments(docs, { save = true } = {}) { const next = validateLibrary(docs); const previous = new Set(state.documents.map(doc => doc.id)); state.selectedIds = new Set(next.filter(doc => !previous.has(doc.id) || state.selectedIds.has(doc.id)).map(doc => doc.id)); state.documents = next; renderDocuments(); clearConversation(); researchWorkspace?.refresh({ documentsChanged: true }); if (save) queueSave(); }
 function addDocuments(docs) {
   if (state.documents.length + docs.length > 20) throw new Error('当前页面最多保留 20 份资料，请先移除部分资料。');
   if (docs.some(d => d.text.length > 100000)) throw new Error('单份资料最多 10 万字符，请拆分后导入。');
@@ -63,7 +82,7 @@ function addDocuments(docs) {
 }
 
 function renderStorage() {
-  $('#persist-toggle').checked = state.persist;
+  $('#persist-toggle').checked = state.pendingPersist ?? state.persist;
   $('#persist-toggle').disabled = state.persistenceBusy || state.initializing;
   $('#save-now').hidden = !state.persist || !state.saveError;
   $('#storage-label').textContent = state.saveError ? '本次修改尚未保存' : state.saving ? '正在保存到此浏览器' : state.persist ? '资料已保存在此浏览器' : '资料仅留在此页面';
@@ -78,13 +97,14 @@ function renderStorage() {
 function queueSave() {
   if (!state.persist) return saveQueue;
   const snapshot = state.documents;
+  const research = state.research;
   const revision = persistenceRevision;
   const sequence = ++saveSequence;
   state.saving = true; state.saveError = ''; renderStorage();
   saveQueue = saveQueue.catch(() => {}).then(async () => {
     if (!state.persist || revision !== persistenceRevision || sequence !== saveSequence) return;
     try {
-      const saved = await writeLibrary(snapshot);
+      const saved = await writeLibrary(snapshot, research);
       if (revision === persistenceRevision && sequence === saveSequence) { state.savedAt = saved.savedAt; state.saveError = ''; }
     } catch (error) {
       if (revision === persistenceRevision && sequence === saveSequence) { state.saveError = `保存失败：${error.message} 当前修改仍可使用，请导出备份。`; toast('本地保存失败，当前资料仍可使用。请导出备份。'); }
@@ -95,13 +115,13 @@ function queueSave() {
 
 async function changePersistence(enabled) {
   if (isBusy()) { renderStorage(); return; }
-  state.persistenceBusy = true; state.saveError = ''; updateControls(); renderStorage();
+  state.persistenceBusy = true; state.pendingPersist = enabled; state.saveError = ''; updateControls(); renderStorage();
   persistenceRevision++;
   try {
     await saveQueue.catch(() => {});
     if (enabled) {
       setPersistenceEnabled(true);
-      try { const saved = await writeLibrary(state.documents); state.savedAt = saved.savedAt; state.persist = true; }
+      try { const saved = await writeLibrary(state.documents, state.research); state.savedAt = saved.savedAt; state.persist = true; }
       catch (error) { setPersistenceEnabled(false); await clearLibrary().catch(() => {}); throw error; }
       toast('本地保存已开启，刷新后可以继续使用资料。');
     } else {
@@ -109,7 +129,7 @@ async function changePersistence(enabled) {
       toast('已关闭本地保存，并移除浏览器中的资料副本。');
     }
   } catch (error) { state.persist = persistenceEnabled(); state.saveError = error.message; toast(error.message); }
-  finally { state.saving = false; state.persistenceBusy = false; updateControls(); renderStorage(); }
+  finally { state.saving = false; state.persistenceBusy = false; state.pendingPersist = null; updateControls(); renderStorage(); researchWorkspace?.refresh(); }
 }
 
 function downloadText(text, name, type) {
@@ -118,7 +138,7 @@ function downloadText(text, name, type) {
 
 function exportLibrary() {
   if (isBusy()) return;
-  try { downloadText(serializeBackup(state.documents), `CiteMind-知识库-${new Date().toISOString().slice(0, 10)}.json`, 'application/json;charset=utf-8'); toast('已导出资料与 PDF 页码，可用于恢复知识库。'); }
+  try { downloadText(serializeBackup(state.documents, state.research), `CiteMind-知识库-${new Date().toISOString().slice(0, 10)}.json`, 'application/json;charset=utf-8'); toast('已导出资料、PDF 页码与研究笔记，可完整恢复。'); }
   catch (error) { toast(error.message); }
 }
 
@@ -126,19 +146,26 @@ async function restoreLibrary(file) {
   if (!file || isBusy()) return;
   try {
     if (file.size > 6 * 1024 * 1024) throw new Error('备份文件过大，最多支持 6 MB。');
-    const restored = parseBackup(await file.text());
+    const backup = parseWorkspaceBackup(await file.text());
+    const restored = backup.documents;
     if (isBusy()) return;
-    if ($('#restore-mode').value === 'replace') { replaceDocuments(restored); toast(`已从备份恢复 ${restored.length} 份资料，并清空旧对话。`); }
+    if ($('#restore-mode').value === 'replace') { state.research = backup.research; replaceDocuments(restored); toast(`已恢复 ${restored.length} 份资料与 ${state.research.cards.length} 条研究证据。`); }
     else {
-      const contentKeys = new Set(state.documents.map(d => JSON.stringify([d.title, d.text, d.type || 'text'])));
+      const contentKey = d => JSON.stringify([d.title, d.text, d.type || 'text', d.pages || null]);
+      const contentKeys = new Map(state.documents.map(d => [contentKey(d), d.id]));
       const ids = new Set(state.documents.map(d => d.id));
       const additions = [];
+      const idMap = new Map();
       for (const doc of restored) {
-        const key = JSON.stringify([doc.title, doc.text, doc.type || 'text']); if (contentKeys.has(key)) continue;
-        contentKeys.add(key); const id = ids.has(doc.id) ? crypto.randomUUID() : doc.id; ids.add(id); additions.push({ ...doc, id });
+        const key = contentKey(doc); if (contentKeys.has(key)) { idMap.set(doc.id, contentKeys.get(key)); continue; }
+        const id = ids.has(doc.id) ? crypto.randomUUID() : doc.id; contentKeys.set(key, id); idMap.set(doc.id, id); ids.add(id); additions.push({ ...doc, id });
       }
-      if (!additions.length) return toast('备份中的资料已在当前知识库，无需重复导入。');
-      replaceDocuments([...state.documents, ...additions]); toast(`已合并 ${additions.length} 份新资料。`);
+      // A previously removed source in the backup must not silently attach to
+      // an unrelated live document that happens to reuse its identifier.
+      for (const card of backup.research.cards) if (!idMap.has(card.source.id) && ids.has(card.source.id)) idMap.set(card.source.id, crypto.randomUUID());
+      const documents = validateLibrary([...state.documents, ...additions]);
+      const research = mergeResearch(state.research, backup.research, idMap);
+      state.research = research; replaceDocuments(documents); toast(`已合并 ${additions.length} 份新资料，研究笔记已合并。`);
     }
   } catch (error) { toast(`无法恢复：${error.message}`); }
   finally { $('#backup-input').value = ''; }
@@ -146,9 +173,9 @@ async function restoreLibrary(file) {
 
 async function initializeLibrary() {
   updateControls();
-  try { if (state.persist) { const saved = await readLibrary(); if (saved) { state.documents = saved.documents; state.savedAt = saved.savedAt; } else { const created = await writeLibrary(state.documents); state.savedAt = created.savedAt; } } }
+  try { if (state.persist) { const saved = await readLibrary(); if (saved) { state.documents = saved.documents; state.research = saved.research; state.savedAt = saved.savedAt; } else { const created = await writeLibrary(state.documents, state.research); state.savedAt = created.savedAt; } } }
   catch (error) { state.saveError = `无法恢复本地资料：${error.message} 可导入备份，当前展示示例资料。`; toast('本地资料未能恢复，可使用示例或导入备份。'); }
-  finally { state.initializing = false; renderDocuments(); renderMode(); updateControls(); }
+  finally { state.selectedIds = new Set(state.documents.map(doc => doc.id)); state.initializing = false; renderDocuments(); renderMode(); updateControls(); researchWorkspace?.refresh(); }
 }
 
 async function importFiles(files) {
@@ -178,16 +205,17 @@ async function importFiles(files) {
   finally { state.importing = false; state.importAbort = null; $('#import-progress').hidden = true; $('#file-input').value = ''; updateControls(); }
 }
 
-function renderEvidence(result) {
+function renderEvidence(result, question = result.question || '') {
   $('#evidence-count').textContent = result.sources.length;
   const body = $('#evidence-body'); body.replaceChildren();
   const note = result.sources.length ? `找到 ${result.sources.length} 条相关片段 · 点击卡片查看原文。排序表示相关程度，不代表事实准确率。` : '当前资料中没有足够相关的原文。补充资料后可以再次提问。';
   body.append(node('p', 'evidence-result-note', note));
   result.sources.forEach((source, index) => {
+    const wrapper = node('div', 'evidence-entry');
     const card = node('button', 'source-card'); card.id = `evidence-${index + 1}`;
     const heading = node('div', 'source-title'); heading.append(node('span', '', String(index + 1)), node('b', '', source.title));
     const meta = node('small', '', source.pageNumber ? `PDF 第 ${source.pageNumber} 页` : source.chunkId.split(':').at(-1).replace('chunk-', '片段 ')); meta.append(node('span', '', '查看原文 ↗'));
-    card.append(heading, node('p', '', source.excerpt), meta); card.addEventListener('click', () => openDocument(source.id, source.excerpt, source)); body.append(card);
+    card.append(heading, node('p', '', source.excerpt), meta); card.addEventListener('click', () => openDocument(source.id, source.excerpt, source)); wrapper.append(card, researchWorkspace.pinButton(source, question)); body.append(wrapper);
   });
 }
 
@@ -207,7 +235,7 @@ function markdownText(value) {
   return String(value).replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/[\\`*{}\[\]()#+.!_|~-]/g, '\\$&');
 }
 function resultMarkdown(question, result) {
-  const lines = [`## ${markdownText(question)}`, '', `模式：${result.mode === 'semantic' ? '本地 AI 语义检索' : '快速检索与原文摘录'} · 检索耗时：${result.elapsedMs} ms`, '', markdownText(result.answer)];
+  const lines = [`## ${markdownText(question)}`, '', `模式：${result.mode === 'semantic' ? '本地 AI 语义检索' : '快速检索与原文摘录'} · 检索耗时：${result.elapsedMs} ms`, '', `检索范围：${(result.scope || []).map(markdownText).join('、')}`, '', markdownText(result.answer)];
   if (result.sources.length) { lines.push('', '### 原文来源'); result.sources.forEach((s, i) => lines.push('', `#### [${i + 1}] ${markdownText(s.title)}${s.pageNumber ? `（第 ${s.pageNumber} 页）` : ''}`, '', `片段标识：${markdownText(s.chunkId)}`, '', markdownText(s.excerpt))); }
   return lines.join('\n');
 }
@@ -221,6 +249,7 @@ async function ask(question) {
   if (isBusy()) return;
   question = String(question).trim(); if (!question) { $('#question').focus(); return; }
   if (question.length > 1000) return toast('问题最多 1000 字，请精简后发送。');
+  if (!state.selectedIds.size) return toast('请在左侧至少勾选一份参与检索的资料。');
   if (state.history.length >= 20) return toast('当前对话已达 20 轮。请先导出记录，再新建对话。');
   $('#question').value = ''; $('#welcome').hidden = true; $('#library').classList.remove('mobile-open'); setBusy(true);
   const message = node('article', 'message'); const user = node('div', 'user-question'); user.append(node('p', '', question));
@@ -230,14 +259,16 @@ async function ask(question) {
   message.append(user, head, body); $('#messages').append(message); scrollBottom();
   try {
     await new Promise(resolve => setTimeout(resolve, 30));
-    const result = await answerQuestion({ question, documents: state.documents, mode });
+    const result = await answerQuestion({ question, documents: state.documents, mode, documentIds: [...state.selectedIds] });
+    result.question = question; result.scope = state.documents.filter(doc => state.selectedIds.has(doc.id)).map(doc => doc.title);
     body.replaceChildren(); citationText(body, result.answer, result);
     timing.textContent = `${mode === 'semantic' ? 'AI 语义检索' : '原文摘录'} · ${result.elapsedMs} ms`;
     renderEvidence(result); state.history.push({ question, result });
     const tools = node('div', 'answer-tools'); const copy = node('button'); copy.append(icon('copy'), document.createTextNode('复制回答'));
     copy.addEventListener('click', async () => { try { await navigator.clipboard.writeText(resultMarkdown(question, result)); toast('回答与原文来源已复制。'); } catch { toast('浏览器未允许复制，可使用导出功能保存。'); } });
     const download = node('button'); download.append(icon('down'), document.createTextNode('导出记录')); download.addEventListener('click', exportHistory);
-    tools.append(copy, download, node('span', 'source-count', `${result.sources.length} 条来源可核对`)); message.append(tools);
+    const collect = node('button', '', '收集本次证据'); collect.disabled = !result.sources.length; collect.addEventListener('click', () => { if (isBusy()) return; try { let research = state.research; result.sources.forEach(source => { research = collectEvidenceForAnswer(research, source, question, state.documents); }); state.research = research; queueSave(); researchWorkspace.refresh(); toast('本次原文已收集到研究笔记。'); } catch (error) { toast(error.message); } });
+    tools.append(copy, download, collect, node('span', 'source-count', `${result.sources.length} 条来源 · 检索 ${result.scope.length} 份资料`)); message.append(tools);
     const followups = node('div', 'followups'); result.followups.slice(0,3).forEach(q => { const b = node('button', '', q); b.addEventListener('click', () => ask(q)); followups.append(b); }); message.append(followups);
   } catch (error) {
     body.replaceChildren(node('p', 'error-message', error.message || '检索失败，请重新提问。')); timing.textContent = '本次检索未完成';
@@ -270,10 +301,16 @@ async function enableAI() {
   finally { state.loading = false; state.modelAbort = null; $('#model-progress').hidden = true; renderMode(); }
 }
 
+researchWorkspace = mountResearchWorkspace({ getDocuments: () => state.documents, getResearch: () => state.research, setResearch: research => { state.research = validateResearch(research); queueSave(); }, getSelectedIds: () => [...state.selectedIds], openSource: openDocument, toast, download: downloadText, isBusy, isPersistent: () => state.persist });
+
 // Dialogs use native focus management and Escape handling.
 document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));
 document.querySelectorAll('dialog').forEach(dialog => dialog.addEventListener('click', event => { if (event.target === dialog) { const r = dialog.getBoundingClientRect(); if (event.clientX < r.left || event.clientX > r.right || event.clientY < r.top || event.clientY > r.bottom) dialog.close(); } }));
 $('#question').maxLength = 1000;
+$('#document-search').addEventListener('input', renderDocuments);
+$('#select-all-sources').addEventListener('click', () => { if (isBusy()) return; state.selectedIds = new Set(state.documents.map(doc => doc.id)); renderDocuments(); researchWorkspace.refresh({ documentsChanged: true }); });
+$('#select-no-sources').addEventListener('click', () => { if (isBusy()) return; state.selectedIds.clear(); renderDocuments(); researchWorkspace.refresh({ documentsChanged: true }); });
+['#research-open', '#nav-research'].forEach(id => $(id).addEventListener('click', () => researchWorkspace.open()));
 $('#question-form').addEventListener('submit', event => { event.preventDefault(); ask($('#question').value); });
 $('#question').addEventListener('keydown', event => { if (event.key === 'Enter' && !event.shiftKey && !event.isComposing) { event.preventDefault(); ask(event.currentTarget.value); } });
 $('#clear-chat').addEventListener('click', () => { if (!isBusy()) { clearConversation(); toast('已开始新对话。'); } });

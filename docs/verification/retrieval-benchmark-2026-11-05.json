@@ -1,0 +1,25 @@
+{
+  "measuredAt": "2026-11-05T15:05:19.142Z",
+  "runtime": "v24.12.0",
+  "platform": "win32",
+  "baselineCommit": "b002cf8515b468bc76a35d8c1a8bbba6b595bd33",
+  "corpus": {
+    "documents": 20,
+    "characters": 138260,
+    "chunks": 403
+  },
+  "workload": "Synthetic Chinese corpus, 13 fixed queries × 3 rounds per engine; warm lexical index. Does not measure model inference, browser startup or retrieval accuracy.",
+  "equivalentResults": true,
+  "equivalenceChecks": 29,
+  "baseline": {
+    "samples": 39,
+    "medianMs": 40.99,
+    "p95Ms": 47.303
+  },
+  "current": {
+    "samples": 39,
+    "medianMs": 3.257,
+    "p95Ms": 8.252
+  },
+  "medianSpeedup": 12.59
+}

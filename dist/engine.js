@@ -46,10 +46,10 @@ export const DEMO_DOCS = [
     title: '数据与隐私说明',
     text: `# 数据与隐私说明
 导入的文档在浏览器内解析和检索，不会上传到应用服务器，也不会发送给远程大语言模型接口。关键词模式不需要下载模型，可以直接对已导入资料进行本地检索。
-首次开启本地 AI 时，浏览器需要从模型托管服务和公共 CDN 下载模型、分词器及推理运行库。下载行为会产生普通网络请求，但应用不会把用户文档或问题放入这些下载请求。
+首次开启本地 AI 时，浏览器需要从本站下载固定版本的模型、分词器及推理运行库。下载行为会产生普通网络请求，但应用不会把用户文档或问题放入这些下载请求。
 模型下载后在浏览器运行，问题与文档的向量也在本地计算。浏览器可能缓存模型资源，以减少下次加载时的重复下载。模型缓存由浏览器管理，清除站点数据或浏览器缓存可能导致下次重新下载。
 知识库的本机保存默认关闭，未开启时资料仅存在于当前页面内存，刷新会恢复示例资料。开启本机保存后，资料文字与 PDF 页码信息保存在当前浏览器的 IndexedDB，不会同步到其他设备。清除站点数据、使用无痕窗口或换设备后，本地资料可能不可用，用户应自行保留原始文档。
-JSON 知识库备份包含文档标题、文字与 PDF 分页信息，恢复时重新建立索引；它不包含原始 PDF 文件、聊天记录或模型缓存。备份文件包含资料原文，用户应妥善保管。页面内的向量缓存与浏览器中的模型缓存也不等于知识库备份。
+JSON 知识库备份包含文档标题、文字、PDF 分页信息与研究笔记，恢复时重新建立索引；它不包含原始 PDF 文件、聊天记录或模型缓存。备份文件包含资料原文，用户应妥善保管。页面内的向量缓存与浏览器中的模型缓存也不等于知识库备份。
 本项目不要求 API Key，不提供账户系统，不主动采集用户上传文档。使用部署服务时，服务商仍可能记录常规访问日志。涉及敏感资料时，用户应先确认设备和浏览器环境适合处理这些资料。`,
   },
   {
@@ -92,6 +92,8 @@ let embedder = null;
 let modelRevision = 0;
 const vectorCache = new Map();
 const sentenceVectorCache = new Map();
+const lexicalIndexCache = new Map();
+const MAX_LEXICAL_CACHE_CHARACTERS = 1_000_000;
 let segmenter;
 try {
   segmenter = new Intl.Segmenter('zh', { granularity: 'word' });
@@ -229,9 +231,23 @@ function allChunks(documents) {
   return prepareDocuments(documents).flatMap(doc => doc.chunks);
 }
 
-function lexicalRanks(question, chunks) {
-  const query = [...new Set(tokens(question, true))];
-  if (!query.length || !chunks.length) return [];
+function scopedDocuments(documents, documentIds) {
+  const prepared = prepareDocuments(documents);
+  if (documentIds === undefined) return prepared;
+  if (!Array.isArray(documentIds) || !documentIds.every(id => typeof id === 'string')) throw new TypeError('检索范围必须是资料标识列表。');
+  const selected = new Set(documentIds);
+  return prepared.filter(doc => selected.has(doc.id));
+}
+
+function lexicalIndex(chunks) {
+  // Exact content and metadata, rather than a short hash, prevent stale offsets
+  // or hash collisions from linking results to a different document revision.
+  const key = JSON.stringify(chunks);
+  if (lexicalIndexCache.has(key)) {
+    const cached = lexicalIndexCache.get(key);
+    lexicalIndexCache.delete(key); lexicalIndexCache.set(key, cached);
+    return cached;
+  }
   const corpus = chunks.map(chunk => {
     const textTokens = tokens(chunk.text);
     const counts = new Map();
@@ -239,24 +255,48 @@ function lexicalRanks(question, chunks) {
     return { chunk, counts, length: Math.max(textTokens.length, 1), titleTokens: new Set(tokens(chunk.title)) };
   });
   const averageLength = corpus.reduce((n, row) => n + row.length, 0) / corpus.length;
-  const frequency = new Map(query.map(term => [term, corpus.filter(row => row.counts.has(term) || row.titleTokens.has(term)).length]));
-  return corpus.map(row => {
-    let raw = 0;
-    let hits = 0;
-    for (const term of query) {
-      const tf = row.counts.get(term) || 0;
-      const titleMatch = row.titleTokens.has(term);
-      if (!tf && !titleMatch) continue;
-      hits++;
-      const idf = Math.log(1 + (corpus.length - frequency.get(term) + 0.5) / (frequency.get(term) + 0.5));
-      const bm25 = tf ? (tf * 2.2) / (tf + 1.2 * (0.25 + 0.75 * row.length / averageLength)) : 0;
-      raw += idf * (bm25 + (titleMatch ? 0.65 : 0));
+  const postings = new Map();
+  corpus.forEach((row, index) => {
+    for (const term of new Set([...row.counts.keys(), ...row.titleTokens])) {
+      if (!postings.has(term)) postings.set(term, []);
+      postings.get(term).push({ index, tf: row.counts.get(term) || 0, titleMatch: row.titleTokens.has(term) });
     }
+  });
+  const built = { corpus, averageLength, postings };
+  if (key.length <= MAX_LEXICAL_CACHE_CHARACTERS) {
+    lexicalIndexCache.set(key, built);
+    let retained = [...lexicalIndexCache.keys()].reduce((sum, value) => sum + value.length, 0);
+    while (lexicalIndexCache.size > 3 || retained > MAX_LEXICAL_CACHE_CHARACTERS) {
+      const oldest = lexicalIndexCache.keys().next().value;
+      retained -= oldest.length; lexicalIndexCache.delete(oldest);
+    }
+  }
+  return built;
+}
+
+function lexicalRanks(question, chunks) {
+  const query = [...new Set(tokens(question, true))];
+  if (!query.length || !chunks.length) return [];
+  const { corpus, averageLength, postings } = lexicalIndex(chunks);
+  const matches = new Map();
+  for (const term of query) {
+    const rows = postings.get(term) || [];
+    const idf = Math.log(1 + (corpus.length - rows.length + 0.5) / (rows.length + 0.5));
+    for (const { index, tf, titleMatch } of rows) {
+      const row = corpus[index];
+      const match = matches.get(index) || { raw: 0, hits: 0 };
+      match.hits++;
+      const bm25 = tf ? (tf * 2.2) / (tf + 1.2 * (0.25 + 0.75 * row.length / averageLength)) : 0;
+      match.raw += idf * (bm25 + (titleMatch ? 0.65 : 0));
+      matches.set(index, match);
+    }
+  }
+  return [...matches].map(([index, { raw, hits }]) => {
     // This bounded value is useful for ranking and display, not a probability.
     const coverage = hits / Math.max(Math.min(query.length, 8), 1);
     const score = hits ? (1 - Math.exp(-raw / 4)) * (0.55 + 0.45 * Math.min(coverage, 1)) : 0;
-    return { chunk: row.chunk, score, hits };
-  }).filter(row => row.hits > 0).sort((a, b) => b.score - a.score);
+    return { chunk: corpus[index].chunk, score, hits, index };
+  }).sort((a, b) => b.score - a.score || a.index - b.index);
 }
 
 function chooseEvidence(rows, { limit = 4, minScore = 0.12 } = {}) {
@@ -281,7 +321,34 @@ function chooseEvidence(rows, { limit = 4, minScore = 0.12 } = {}) {
 export function retrieve(question, documents = [], options = {}) {
   const query = cleanText(question).trim();
   if (!query) return [];
-  return chooseEvidence(lexicalRanks(query, allChunks(documents)), options);
+  return chooseEvidence(lexicalRanks(query, allChunks(scopedDocuments(documents, options.documentIds))), options);
+}
+
+/** One anchored sentence per document, using shared corpus term statistics. */
+export function retrieveByDocument(question, documents = [], options = {}) {
+  const prepared = scopedDocuments(documents, options.documentIds);
+  // Remove auxiliary question phrases before segmentation; otherwise crossing
+  // bigrams such as 会被 can outrank the actual topic (e.g. 文档 + 上传).
+  const query = cleanText(question).replace(/会被|是否会|会不会/gu, ' ').trim();
+  if (query.length > 1000) throw new RangeError('问题过长，请缩短至 1000 字以内。');
+  const chunks = allChunks(prepared);
+  const rows = query ? lexicalRanks(query, chunks) : [];
+  const weights = queryWeights(query, prepared);
+  const vocabulary = chunks.length ? lexicalIndex(chunks).postings : new Map();
+  const totalWeight = [...weights].reduce((sum, [term, weight]) => sum + (vocabulary.has(term) ? weight : 0), 0) || 1;
+  return prepared.map(doc => {
+    const candidates = chooseEvidence(rows.filter(row => row.chunk.documentId === doc.id), { limit: 2, minScore: 0.06 });
+    const sentences = candidates.flatMap(source => sentenceCandidates(source.excerpt).map(sentence => {
+      const ranking = weightedSentenceScore(sentence.text, weights);
+      const terms = new Set(tokens(sentence.text));
+      const matchedWeight = [...weights].reduce((sum, [term, weight]) => sum + (terms.has(term) ? weight : 0), 0);
+      return { source, sentence, ...ranking, coverage: matchedWeight / totalWeight };
+    })).filter(row => row.matches > 0 && row.coverage >= 0.35).sort((a, b) => b.score - a.score || (a.source.start + a.sentence.start) - (b.source.start + b.sentence.start));
+    const best = sentences[0];
+    if (!best) return { documentId: doc.id, sources: [] };
+    const start = best.source.start + best.sentence.start;
+    return { documentId: doc.id, sources: [{ ...best.source, excerpt: best.sentence.text, start, end: start + best.sentence.text.length }] };
+  });
 }
 
 /** Inject a real local embedding function; null releases vectors and disables it. */
@@ -448,14 +515,14 @@ function followupsFor(sources) {
  * Retrieve evidence and quote it. The UI should label the mode as 原文摘录 or
  * 本地 AI 语义检索; neither is generative question answering.
  */
-export async function answerQuestion({ question = '', documents = [], mode = 'extractive' } = {}) {
+export async function answerQuestion({ question = '', documents = [], mode = 'extractive', documentIds } = {}) {
   const started = globalThis.performance?.now() ?? Date.now();
   const elapsed = () => Math.max(0, Math.round((globalThis.performance?.now() ?? Date.now()) - started));
   if (!['extractive', 'semantic'].includes(mode)) throw new Error('不支持的检索模式。');
   const query = cleanText(question).trim();
   if (!query) return { answer: '先输入一个问题，我会从当前资料中查找相关原文。', sources: [], mode, elapsedMs: elapsed(), followups: [...DEFAULT_FOLLOWUPS] };
   if (query.length > 1000) throw new RangeError('问题过长，请缩短至 1000 字以内。');
-  const prepared = prepareDocuments(documents);
+  const prepared = scopedDocuments(documents, documentIds);
   if (!prepared.length) return { answer: '当前知识库还没有可检索的内容。请先导入文档，或载入示例资料。', sources: [], mode, elapsedMs: elapsed(), followups: [] };
   const semantic = mode === 'semantic' ? await semanticEvidence(query, prepared) : null;
   let sources = semantic ? semantic.sources : retrieve(query, prepared);

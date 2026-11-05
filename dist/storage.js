@@ -1,5 +1,6 @@
 /** Optional, browser-local document persistence. No DOM, network, or model data. */
 import { prepareDocuments } from './engine.js';
+import { validateResearch } from './research.js';
 
 const FORMAT = 'citemind.knowledge-base';
 const VERSION = 1;
@@ -75,17 +76,21 @@ function validateEnvelope(value, dateField) {
 }
 
 /** Portable plain JSON; excludes embeddings, chunks, conversations, and PDF files. */
-export function serializeBackup(rawDocs) {
-  return JSON.stringify({ format: FORMAT, version: VERSION, exportedAt: new Date().toISOString(), documents: rawDocuments(validateLibrary(rawDocs)) }, null, 2);
+export function serializeBackup(rawDocs, research) {
+  return JSON.stringify({ format: FORMAT, version: VERSION, exportedAt: new Date().toISOString(), documents: rawDocuments(validateLibrary(rawDocs)), research: validateResearch(research) }, null, 2);
 }
 
 export function parseBackup(text) {
+  return parseWorkspaceBackup(text).documents;
+}
+
+export function parseWorkspaceBackup(text) {
   if (typeof text !== 'string') throw new TypeError('备份必须是 JSON 文本。');
   if (text.length > MAX_BACKUP_LENGTH) throw new RangeError('备份文件过大，最多支持 6 MB 文本。');
   let value;
   try { value = JSON.parse(text); }
   catch { throw new TypeError('备份不是有效的 JSON 文件。'); }
-  return validateEnvelope(value, 'exportedAt');
+  return { documents: validateEnvelope(value, 'exportedAt'), research: validateResearch(value.research) };
 }
 
 /** localStorage contains this boolean preference only, never user documents. */
@@ -168,16 +173,17 @@ export async function readLibrary() {
   const stored = await transact('readonly', store => store.get(WORKSPACE_KEY));
   if (!persistenceEnabled()) return null;
   if (stored === undefined) return null;
-  return { documents: validateEnvelope(stored, 'savedAt'), savedAt: stored.savedAt };
+  return { documents: validateEnvelope(stored, 'savedAt'), research: validateResearch(stored.research), savedAt: stored.savedAt };
 }
 
-export async function writeLibrary(rawDocs) {
+export async function writeLibrary(rawDocs, research) {
   if (!persistenceEnabled()) throw new Error('请先开启“在此浏览器保存知识库”。');
   const documents = rawDocuments(validateLibrary(rawDocs));
+  const notes = validateResearch(research);
   const savedAt = new Date().toISOString();
   await transact('readwrite', store => {
     if (!persistenceEnabled()) throw new Error('本地保存已关闭，未保存资料。');
-    return store.put({ format: FORMAT, version: VERSION, savedAt, documents }, WORKSPACE_KEY);
+    return store.put({ format: FORMAT, version: VERSION, savedAt, documents, research: notes }, WORKSPACE_KEY);
   });
   return { savedAt };
 }
