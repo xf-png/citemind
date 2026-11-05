@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1000" height="576" viewBox="0 0 1000 576" role="img" aria-labelledby="title description">
+<title id="title">本地知识工具 · 资料与证据研究 · 证据地图</title><desc id="description">连线表示研究问题与已收集证据来源的关联，不表示支持或事实正确。来源待核对共 0 条。</desc>
+<rect width="100%" height="100%" fill="#f8faff"/>
+<g font-family="system-ui,Segoe UI,Microsoft YaHei,sans-serif">
+<text x="24" y="34" font-size="21" font-weight="600" fill="#172a48">本地知识工具 · 资料与证据研究</text>
+<text x="24" y="60" font-size="12" fill="#687b96">CiteMind · 4 个问题 · 5 份来源 · 9 条已收集证据 · 0 条待核对</text>
+<text x="24" y="96" font-size="11" fill="#5273b5">研究问题</text><text x="674" y="96" font-size="11" fill="#5273b5">资料来源</text>
+<g transform="translate(0,108)">
+<path d="M 334 61 C 450 61, 550 52, 666 52" fill="none" stroke="#9cb8ed" stroke-width="2"><title>1 条证据，0 条来源待核对</title></path>
+<path d="M 334 151 C 450 151, 550 196, 666 196" fill="none" stroke="#9cb8ed" stroke-width="2"><title>1 条证据，0 条来源待核对</title></path>
+<path d="M 334 151 C 450 151, 550 124, 666 124" fill="none" stroke="#9cb8ed" stroke-width="2"><title>1 条证据，0 条来源待核对</title></path>
+<path d="M 334 241 C 450 241, 550 268, 666 268" fill="none" stroke="#9cb8ed" stroke-width="2"><title>1 条证据，0 条来源待核对</title></path>
+<path d="M 334 241 C 450 241, 550 196, 666 196" fill="none" stroke="#9cb8ed" stroke-width="2"><title>1 条证据，0 条来源待核对</title></path>
+<path d="M 334 241 C 450 241, 550 52, 666 52" fill="none" stroke="#9cb8ed" stroke-width="2"><title>1 条证据，0 条来源待核对</title></path>
+<path d="M 334 241 C 450 241, 550 124, 666 124" fill="none" stroke="#9cb8ed" stroke-width="2"><title>1 条证据，0 条来源待核对</title></path>
+<path d="M 334 241 C 450 241, 550 340, 666 340" fill="none" stroke="#9cb8ed" stroke-width="2"><title>1 条证据，0 条来源待核对</title></path>
+<path d="M 334 331 C 450 331, 550 196, 666 196" fill="none" stroke="#9cb8ed" stroke-width="2"><title>1 条证据，0 条来源待核对</title></path>
+<g><title>文档会被上传吗？ · 1 条证据</title><rect x="16" y="33" width="318" height="56" rx="10" fill="#fff" stroke="#d8e3f4"/><text x="29" y="53" font-size="10" fill="#7890b4">Q-1 · 1 条已收集证据</text><text x="29" y="74" font-size="13" fill="#203b64">文档会被上传吗？</text></g>
+<g><title>如何保证引用可追溯？ · 2 条证据</title><rect x="16" y="123" width="318" height="56" rx="10" fill="#fff" stroke="#d8e3f4"/><text x="29" y="143" font-size="10" fill="#7890b4">Q-2 · 2 条已收集证据</text><text x="29" y="164" font-size="13" fill="#203b64">如何保证引用可追溯？</text></g>
+<g><title>本地 AI 如何检索？ · 5 条证据</title><rect x="16" y="213" width="318" height="56" rx="10" fill="#fff" stroke="#d8e3f4"/><text x="29" y="233" font-size="10" fill="#7890b4">Q-3 · 5 条已收集证据</text><text x="29" y="254" font-size="13" fill="#203b64">本地 AI 如何检索？</text></g>
+<g><title>有哪些使用限制？ · 1 条证据</title><rect x="16" y="303" width="318" height="56" rx="10" fill="#fff" stroke="#d8e3f4"/><text x="29" y="323" font-size="10" fill="#7890b4">Q-4 · 1 条已收集证据</text><text x="29" y="344" font-size="13" fill="#203b64">有哪些使用限制？</text></g>
+<g><title>数据与隐私说明 · 2 条证据</title><rect x="666" y="24" width="318" height="56" rx="10" fill="#fff" stroke="#d8e3f4"/><text x="679" y="44" font-size="10" fill="#7890b4">S-1 · 2 条已收集证据</text><text x="679" y="65" font-size="13" fill="#203b64">数据与隐私说明</text></g>
+<g><title>评估与测试方案 · 2 条证据</title><rect x="666" y="96" width="318" height="56" rx="10" fill="#fff" stroke="#d8e3f4"/><text x="679" y="116" font-size="10" fill="#7890b4">S-3 · 2 条已收集证据</text><text x="679" y="137" font-size="13" fill="#203b64">评估与测试方案</text></g>
+<g><title>检索与引用策略 · 3 条证据</title><rect x="666" y="168" width="318" height="56" rx="10" fill="#fff" stroke="#d8e3f4"/><text x="679" y="188" font-size="10" fill="#7890b4">S-2 · 3 条已收集证据</text><text x="679" y="209" font-size="13" fill="#203b64">检索与引用策略</text></g>
+<g><title>产品设计说明 · 1 条证据</title><rect x="666" y="240" width="318" height="56" rx="10" fill="#fff" stroke="#d8e3f4"/><text x="679" y="260" font-size="10" fill="#7890b4">S-4 · 1 条已收集证据</text><text x="679" y="281" font-size="13" fill="#203b64">产品设计说明</text></g>
+<g><title>上线与迭代计划 · 1 条证据</title><rect x="666" y="312" width="318" height="56" rx="10" fill="#fff" stroke="#d8e3f4"/><text x="679" y="332" font-size="10" fill="#7890b4">S-5 · 1 条已收集证据</text><text x="679" y="353" font-size="13" fill="#203b64">上线与迭代计划</text></g>
+</g>
+<text x="24" y="552" font-size="11" fill="#687b96">节点数字表示已收集证据条数；连线表示收集关联。当前筛选的图像快照，不替代完整 JSON 备份。</text>
+</g></svg>

@@ -4,6 +4,8 @@ import { readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { resolve, extname, sep } from 'node:path';
 
+const resourceCount = JSON.parse((await readFile(new URL('../../dist/sw.js', import.meta.url), 'utf8')).match(/^const PACKAGE = (.+);$/m)[1]).assets.length;
+
 test.beforeEach(async ({ page }) => { await page.goto('./'); await expect(page.locator('#question')).toBeEnabled(); });
 async function settings(page) { await page.locator('#library-settings').click(); }
 async function closeSettings(page) { await page.locator('#library-dialog [data-close]').last().click(); }
@@ -58,7 +60,7 @@ test('An incomplete cache can be repaired instead of claiming offline readiness'
   await settings(page); await prepare(page);
   await page.evaluate(async () => { for (const name of await caches.keys()) if (name.startsWith('citemind-offline-')) await caches.delete(name); });
   await closeSettings(page); await settings(page); await expect(page.locator('#offline-status')).toContainText('不完整');
-  await prepare(page); await expect(page.locator('#offline-status')).toContainText('258 项资源');
+  await prepare(page); await expect(page.locator('#offline-status')).toContainText(`${resourceCount} 项资源`);
 });
 
 test('The real local embedding model loads and retrieves evidence without network', async ({ page, context }, testInfo) => {

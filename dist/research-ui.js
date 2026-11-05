@@ -1,4 +1,5 @@
 import { STANCES, collectEvidence, sourceKey, sourceStatus, compareDocuments, exportResearchMarkdown, exportComparisonMarkdown } from './research.js';
+import { mountEvidenceMap } from './evidence-map-ui.js';
 
 const $ = selector => document.querySelector(selector);
 function node(tag, className, text) { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = text; return el; }
@@ -8,7 +9,7 @@ export function mountResearchWorkspace({ getDocuments, getResearch, setResearch,
   // Static markup only. All document, note and question content uses textContent.
   template.innerHTML = `<dialog id="research-dialog" class="dialog research-dialog" aria-labelledby="research-heading">
     <div class="dialog-heading"><div><span class="eyebrow">FROM SOURCES TO INSIGHT</span><h2 id="research-heading">研究工作台</h2></div><button class="icon-button" id="close-research" aria-label="关闭研究工作台">×</button></div>
-    <div class="research-tabs" role="tablist" aria-label="研究工具"><button id="tab-notes" role="tab" aria-controls="notes-panel" aria-selected="true" tabindex="0">证据笔记 <span id="research-count">0</span></button><button id="tab-compare" role="tab" aria-controls="compare-panel" aria-selected="false" tabindex="-1">资料对照</button></div>
+    <div class="research-tabs" role="tablist" aria-label="研究工具"><button id="tab-notes" role="tab" aria-controls="notes-panel" aria-selected="true" tabindex="0">证据笔记 <span id="research-count">0</span></button><button id="tab-compare" role="tab" aria-controls="compare-panel" aria-selected="false" tabindex="-1">资料对照</button><button id="tab-map" role="tab" aria-controls="map-panel" aria-selected="false" tabindex="-1">证据地图</button></div>
     <section id="notes-panel" role="tabpanel" aria-labelledby="tab-notes">
       <div class="research-toolbar"><div class="research-title-field"><label for="research-title">笔记名称</label><input id="research-title" maxlength="160" placeholder="给这次研究起个名字"></div><button class="primary-button" id="export-research">导出研究笔记</button></div>
       <p class="research-help" id="research-save-note"></p><div id="research-summary" class="research-summary"></div>
@@ -20,11 +21,19 @@ export function mountResearchWorkspace({ getDocuments, getResearch, setResearch,
       <label class="sr-only" for="compare-questions">对照问题，每行一个，最多六个</label><textarea id="compare-questions" rows="3" maxlength="1205" placeholder="每行一个问题，最多 6 个，每个最多 200 字。例如：&#10;主要目标是什么？&#10;有哪些限制？"></textarea>
       <div class="compare-actions"><span id="compare-scope"></span><button class="primary-button" id="run-comparison">生成资料对照</button><button class="secondary-button" id="export-comparison" disabled>导出对照</button></div><p id="compare-status" class="research-help" role="status">使用快速检索，不需要加载模型。相关片段不等同于事实结论。</p><div id="comparison-output"></div>
     </section>
+    <section id="map-panel" role="tabpanel" aria-labelledby="tab-map" hidden></section>
   </dialog>`;
   document.body.append(template.content);
   let comparison = null;
   let removed = null;
   let tab = 'notes';
+  const tabs = ['notes', 'compare', 'map'];
+  const evidenceMap = mountEvidenceMap({ panel: $('#map-panel'), getResearch, getDocuments, openSource, download, editEvidence(id) {
+    $('#research-search').value = ''; $('#research-filter').value = 'all';
+    setTab('notes');
+    const card = [...document.querySelectorAll('#research-cards [data-card-id]')].find(node => node.dataset.cardId === id);
+    card?.scrollIntoView({ block: 'center' }); card?.querySelector('textarea')?.focus({ preventScroll: true });
+  } });
 
   function updatePinButtons() {
     const keys = new Set(getResearch().cards.map(card => sourceKey(card.source)));
@@ -42,7 +51,7 @@ export function mountResearchWorkspace({ getDocuments, getResearch, setResearch,
       const before = getResearch().cards.length;
       commit(collectEvidence(getResearch(), source, question, getDocuments()));
       toast(getResearch().cards.length === before ? '这条原文已在研究笔记中。' : '已收集到研究笔记，可添加自己的判断与备注。');
-      if ($('#research-dialog').open) renderNotes();
+      if ($('#research-dialog').open) setTab(tab);
     } catch (error) { toast(error.message); }
   }
   function pinButton(source, question) {
@@ -91,13 +100,14 @@ export function mountResearchWorkspace({ getDocuments, getResearch, setResearch,
   }
   function setTab(next) {
     tab = next;
-    ['notes', 'compare'].forEach(name => { const selected = name === next; $(`#tab-${name}`).setAttribute('aria-selected', String(selected)); $(`#tab-${name}`).tabIndex = selected ? 0 : -1; $(`#${name}-panel`).hidden = !selected; });
+    tabs.forEach(name => { const selected = name === next; $(`#tab-${name}`).setAttribute('aria-selected', String(selected)); $(`#tab-${name}`).tabIndex = selected ? 0 : -1; $(`#${name}-panel`).hidden = !selected; });
     if (next === 'notes') renderNotes();
+    if (next === 'map') evidenceMap.render();
     $('#compare-scope').textContent = `已选 ${getSelectedIds().length} / ${getDocuments().length} 份资料`;
   }
-  ['notes', 'compare'].forEach(name => {
+  tabs.forEach(name => {
     const button = $(`#tab-${name}`); button.addEventListener('click', () => setTab(name));
-    button.addEventListener('keydown', event => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { event.preventDefault(); const next = event.key === 'Home' ? 'notes' : event.key === 'End' ? 'compare' : tab === 'notes' ? 'compare' : 'notes'; setTab(next); $(`#tab-${next}`).focus(); } });
+    button.addEventListener('keydown', event => { if (['ArrowLeft', 'ArrowRight', 'Home', 'End'].includes(event.key)) { event.preventDefault(); const index = tabs.indexOf(tab); const next = event.key === 'Home' ? tabs[0] : event.key === 'End' ? tabs.at(-1) : tabs[(index + (event.key === 'ArrowRight' ? 1 : tabs.length - 1)) % tabs.length]; setTab(next); $(`#tab-${next}`).focus(); } });
   });
   $('#close-research').addEventListener('click', () => $('#research-dialog').close());
   $('#research-title').addEventListener('change', event => { const title = event.target.value.trim() || '我的研究笔记'; event.target.value = title; commit({ ...getResearch(), title }); });
