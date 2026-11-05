@@ -17,6 +17,31 @@ async function walk(dir) {
   }
 }
 await walk(root);
+// Keep Node imports canonical while the browser loads a complete release's
+// module graph through versioned URLs, including dynamic imports and workers.
+const modules = paths.filter(path => !path.includes('/') && path.endsWith('.js')).sort();
+const runtimePaths = paths.filter(path => !path.includes('/') && /\.(?:js|css)$/.test(path)).sort();
+const runtimeHashes = [];
+for (const path of runtimePaths) {
+  const bytes = (await readFile(join(root, path), 'utf8')).replace(/\r\n/g, '\n');
+  runtimeHashes.push([path, createHash('sha256').update(bytes).digest('hex')]);
+}
+const runtimeRevision = createHash('sha256').update(JSON.stringify(runtimeHashes)).digest('hex').slice(0, 12);
+const query = `v=${version}&r=${runtimeRevision}`;
+const htmlQuery = query.replace(/&/g, '&amp;');
+const imports = Object.fromEntries(modules.map(path => [`./${path}`, `./${path}?${query}`]));
+const importMap = `<script type="importmap" id="app-imports">${JSON.stringify({ imports })}</script>`;
+const indexPath = join(root, 'index.html');
+const originalHTML = await readFile(indexPath, 'utf8');
+let html = originalHTML.replace(/\r\n/g, '\n')
+  .replace(/href="(\.\/[^"/]+\.css)(?:\?[^" ]*)?"/g, `href="$1?${htmlQuery}"`)
+  .replace(/src="\.\/app\.js(?:\?[^" ]*)?"/g, `src="./app.js?${htmlQuery}"`);
+if (html.includes('id="app-imports"')) html = html.replace(/<script type="importmap" id="app-imports">[\s\S]*?<\/script>/, importMap);
+else html = html.replace('<script type="module"', `${importMap}\n<script type="module"`);
+if (html !== originalHTML) {
+  if (process.argv.includes('--check')) throw new Error('Browser asset versions are stale. Run npm run build:offline.');
+  await writeFile(indexPath, html);
+}
 const assets = [];
 for (const path of paths.sort()) {
   // Canonical LF for first-party text, consistent with Git's checked-in bytes.

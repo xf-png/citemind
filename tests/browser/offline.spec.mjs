@@ -1,8 +1,6 @@
 import { test, expect } from '@playwright/test';
-import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
-import { fileURLToPath } from 'node:url';
-import { resolve, extname, sep } from 'node:path';
+import { serveDist } from './helpers/serve-dist.mjs';
 
 const resourceCount = JSON.parse((await readFile(new URL('../../dist/sw.js', import.meta.url), 'utf8')).match(/^const PACKAGE = (.+);$/m)[1]).assets.length;
 
@@ -14,23 +12,6 @@ async function prepare(page) {
   await expect(page.locator('#offline-status')).toContainText('已就绪', { timeout: 90_000 });
   await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller));
   await expect(page.locator('#prepare-offline')).toBeEnabled();
-}
-
-async function serveDist(transform = (path, bytes) => bytes) {
-  const root = fileURLToPath(new URL('../../dist/', import.meta.url));
-  const server = createServer(async (request, response) => {
-    try {
-      const path = decodeURIComponent(new URL(request.url, 'http://localhost').pathname);
-      const file = resolve(root, '.' + (path === '/' ? '/index.html' : path));
-      if (!file.startsWith(root.endsWith(sep) ? root : root + sep)) { response.writeHead(403).end(); return; }
-      const bytes = transform(path, await readFile(file));
-      if (bytes === null) { response.writeHead(503).end(); return; }
-      const mime = { '.js': 'application/javascript', '.mjs': 'application/javascript', '.css': 'text/css', '.html': 'text/html', '.wasm': 'application/wasm', '.json': 'application/json', '.svg': 'image/svg+xml' }[extname(file)] || 'application/octet-stream';
-      response.writeHead(200, { 'Content-Type': mime, 'Cache-Control': 'no-store' }); response.end(bytes);
-    } catch { response.writeHead(404).end(); }
-  });
-  await new Promise(resolve => server.listen(0, '127.0.0.1', resolve));
-  return { url: `http://127.0.0.1:${server.address().port}/`, close: async () => { server.closeAllConnections(); await new Promise(resolve => server.close(resolve)); } };
 }
 
 test('Offline is opt-in; a prepared workspace survives an offline reload', async ({ page, context }) => {
