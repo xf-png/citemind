@@ -1,0 +1,25 @@
+{
+  "version": "1.6.0",
+  "verifiedLocalDate": "2026-11-06",
+  "timezone": "Asia/Shanghai",
+  "applicationCommit": "94bec56d08c4577261c791d162e38f4104a0ec99",
+  "repository": "https://github.com/xf-png/citemind",
+  "publicUrl": "https://xf-png.github.io/citemind/",
+  "offlinePackage": { "revision": "f25f988b4b733187", "runtimeFingerprint": "6deee443ab3d", "resources": 262, "bytes": 52957756 },
+  "localFunctionalChecks": { "total": 44, "passed": 44 },
+  "localBrowserChecks": { "total": 58, "passed": 57, "skipped": 1, "skipReason": "Real BGE inference runs once on desktop, not again in the mobile viewport" },
+  "successfulDeployment": { "runId": 42131069765, "url": "https://github.com/xf-png/citemind/actions/runs/42131069765", "conclusion": "success" },
+  "publicBrowserChecks": {
+    "coreFlows": { "total": 36, "passed": 36, "scope": "DOCX parsing and backups, research notes, comparisons and evidence maps; desktop and simulated mobile layout" },
+    "desktopOfflineWord": {
+      "passed": true,
+      "verifiedAt": "2026-11-05T23:50:17.633Z",
+      "preparationSeconds": 93,
+      "preparationTimeoutSeconds": 240,
+      "scenarios": ["Prepare complete package from public origin", "Disable network and reload", "Import an actual python-docx DOCX", "Retrieve table and paragraph text", "Collect evidence and persist a note", "Reload without network and restore the note", "Open the exact original-text highlight without fabricating a Word page"],
+      "browserErrors": []
+    },
+    "initialAttempt": { "corePassedBeforeSuiteTimeout": 23, "offlinePreparationTimedOutAtSeconds": 90, "completedResources": 261, "totalResources": 262, "suiteLimitSeconds": 180, "resolution": "Repeat core scenarios separately; repeat the actual public download with a 240-second limit. The download completed after 93 seconds and the full offline Word flow then passed. No application network behavior was changed." }
+  },
+  "limits": ["Desktop Chrome and a simulated mobile viewport, not real Android or iOS devices", "No human-labelled retrieval accuracy evaluation", "DOCX extraction does not preserve the original layout or physical pages", "Public download time depends on network conditions; one successful run is not a universal access guarantee"]
+}

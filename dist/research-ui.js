@@ -1,5 +1,6 @@
 import { STANCES, collectEvidence, sourceKey, sourceStatus, compareDocuments, exportResearchMarkdown, exportComparisonMarkdown } from './research.js';
 import { mountEvidenceMap } from './evidence-map-ui.js';
+import { mountReportExport } from './research-report-ui.js';
 
 const $ = selector => document.querySelector(selector);
 function node(tag, className, text) { const el = document.createElement(tag); if (className) el.className = className; if (text !== undefined) el.textContent = text; return el; }
@@ -11,7 +12,7 @@ export function mountResearchWorkspace({ getDocuments, getResearch, setResearch,
     <div class="dialog-heading"><div><span class="eyebrow">FROM SOURCES TO INSIGHT</span><h2 id="research-heading">研究工作台</h2></div><button class="icon-button" id="close-research" aria-label="关闭研究工作台">×</button></div>
     <div class="research-tabs" role="tablist" aria-label="研究工具"><button id="tab-notes" role="tab" aria-controls="notes-panel" aria-selected="true" tabindex="0">证据笔记 <span id="research-count">0</span></button><button id="tab-compare" role="tab" aria-controls="compare-panel" aria-selected="false" tabindex="-1">资料对照</button><button id="tab-map" role="tab" aria-controls="map-panel" aria-selected="false" tabindex="-1">证据地图</button></div>
     <section id="notes-panel" role="tabpanel" aria-labelledby="tab-notes">
-      <div class="research-toolbar"><div class="research-title-field"><label for="research-title">笔记名称</label><input id="research-title" maxlength="160" placeholder="给这次研究起个名字"></div><button class="primary-button" id="export-research">导出研究笔记</button></div>
+      <div class="research-toolbar"><div class="research-title-field"><label for="research-title">笔记名称</label><input id="research-title" maxlength="160" placeholder="给这次研究起个名字"></div><div class="research-export-actions"><button class="primary-button" id="export-research">导出研究笔记</button><button class="secondary-button" id="export-report">生成研究报告</button></div></div>
       <p class="research-help" id="research-save-note"></p><div id="research-summary" class="research-summary"></div>
       <div class="research-filters"><label class="sr-only" for="research-search">搜索证据笔记</label><input type="search" id="research-search" placeholder="搜索问题、摘录或笔记…"><label class="sr-only" for="research-filter">按人工标记筛选</label><select id="research-filter"><option value="all">全部标记</option><option value="unclassified">待整理</option><option value="support">支持</option><option value="challenge">存疑 / 反例</option><option value="context">背景</option><option value="stale">来源待核对</option></select></div>
       <div id="research-cards" class="research-cards"></div><button class="text-button" id="undo-evidence" hidden>撤销移除</button>
@@ -24,6 +25,7 @@ export function mountResearchWorkspace({ getDocuments, getResearch, setResearch,
     <section id="map-panel" role="tabpanel" aria-labelledby="tab-map" hidden></section>
   </dialog>`;
   document.body.append(template.content);
+  const report = mountReportExport({ getResearch, getDocuments, download, toast });
   let comparison = null;
   let removed = null;
   let tab = 'notes';
@@ -68,6 +70,7 @@ export function mountResearchWorkspace({ getDocuments, getResearch, setResearch,
     [[research.cards.length, '条证据'], [new Set(research.cards.map(card => card.source.id)).size, '份来源'], [research.cards.filter(card => card.note.trim()).length, '条笔记'], [stale, '条待核对']].forEach(([value, label]) => { const cell = node('div'); cell.append(node('b', '', String(value)), node('span', '', label)); stats.append(cell); });
     $('#research-save-note').textContent = isPersistent() ? '研究笔记与资料一起保存；保存状态见左侧。也可通过“保存与备份”导出完整备份。' : '当前笔记仅留在此页面。开启“保存与备份”中的本地保存，或导出完整知识库备份。';
     $('#export-research').disabled = !research.cards.length;
+    $('#export-report').disabled = !research.cards.length;
   }
   function renderNotes() {
     const research = getResearch(); $('#research-title').value = research.title; renderSummary(); updatePinButtons();
@@ -114,6 +117,7 @@ export function mountResearchWorkspace({ getDocuments, getResearch, setResearch,
   $('#research-search').addEventListener('input', renderNotes); $('#research-filter').addEventListener('change', renderNotes);
   $('#undo-evidence').addEventListener('click', () => { if (!removed) return; try { const cards = [...getResearch().cards, removed]; commit({ ...getResearch(), cards }); removed = null; $('#undo-evidence').hidden = true; renderNotes(); } catch (error) { toast(error.message); } });
   $('#export-research').addEventListener('click', () => download(exportResearchMarkdown(getResearch(), getDocuments()), 'CiteMind-研究笔记.md', 'text/markdown;charset=utf-8'));
+  $('#export-report').addEventListener('click', () => report.open());
   $('#run-comparison').addEventListener('click', () => {
     if (isBusy()) return;
     try {
