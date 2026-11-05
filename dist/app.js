@@ -3,6 +3,7 @@ import { loadLocalModel, unloadLocalModel } from './model.js?v=1.2.0';
 import { validateLibrary, serializeBackup, parseWorkspaceBackup, readLibrary, writeLibrary, clearLibrary, persistenceEnabled, setPersistenceEnabled } from './storage.js';
 import { emptyResearch, validateResearch, mergeResearch, collectEvidence as collectEvidenceForAnswer } from './research.js';
 import { mountResearchWorkspace } from './research-ui.js';
+import { mountOfflineControls } from './offline.js';
 
 const $ = selector => document.querySelector(selector);
 const state = { documents: prepareDocuments(DEMO_DOCS), mode: 'extractive', busy: false, history: [], modelReady: false, loading: false, modelAbort: null, selectedDoc: null, importing: false, importAbort: null, initializing: true, persist: persistenceEnabled(), saving: false, persistenceBusy: false, saveError: '', savedAt: null };
@@ -302,6 +303,7 @@ async function enableAI() {
 }
 
 researchWorkspace = mountResearchWorkspace({ getDocuments: () => state.documents, getResearch: () => state.research, setResearch: research => { state.research = validateResearch(research); queueSave(); }, getSelectedIds: () => [...state.selectedIds], openSource: openDocument, toast, download: downloadText, isBusy, isPersistent: () => state.persist });
+mountOfflineControls({ toast });
 
 // Dialogs use native focus management and Escape handling.
 document.querySelectorAll('[data-close]').forEach(button => button.addEventListener('click', () => button.closest('dialog').close()));

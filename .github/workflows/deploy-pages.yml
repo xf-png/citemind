@@ -32,6 +32,8 @@ jobs:
         run: npm ci
       - name: Verify retrieval, research and storage
         run: npm test
+      - name: Verify offline package matches source
+        run: npm run verify:offline
       - name: Install browser for end-to-end checks
         run: npx playwright install --with-deps chromium
       - name: Verify desktop and mobile layouts

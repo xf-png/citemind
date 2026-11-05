@@ -1,0 +1,13 @@
+{
+  "id": "./",
+  "name": "CiteMind · 证据研究工作台",
+  "short_name": "CiteMind",
+  "description": "在设备上检索资料、核对引用、整理研究笔记。",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#f7f8fb",
+  "theme_color": "#285ee7",
+  "lang": "zh-CN",
+  "icons": [{ "src": "./favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }]
+}

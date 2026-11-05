@@ -20,7 +20,7 @@ export default defineConfig({
     { name: 'mobile-layout', use: { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true } },
   ],
   webServer: process.env.CITEMIND_BASE_URL ? undefined : {
-    command: 'python -m http.server 4176 --bind 127.0.0.1 --directory dist',
+    command: 'python tools/serve.py --no-browser --port 4176 --quiet',
     url: 'http://127.0.0.1:4176',
     reuseExistingServer: !process.env.CI,
     timeout: 15_000,

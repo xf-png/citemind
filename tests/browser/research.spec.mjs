@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises';
 test.beforeEach(async ({ page }) => {
   const errors = []; page.on('pageerror', error => errors.push(error.message));
   page.__errors = errors;
-  await page.goto('/'); await expect(page.locator('#question')).toBeEnabled();
+  await page.goto('./'); await expect(page.locator('#question')).toBeEnabled();
 });
 test.afterEach(async ({ page }) => { expect(page.__errors).toEqual([]); });
 

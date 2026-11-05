@@ -1,4 +1,11 @@
 # Vendor manifests address the exact upstream bytes, including line endings.
+dist/*.js text eol=lf
+dist/*.css text eol=lf
+dist/*.html text eol=lf
+dist/*.svg text eol=lf
+dist/*.json text eol=lf
+dist/*.md text eol=lf
+dist/*.webmanifest text eol=lf
 dist/vendor/** -text
 dist/models/** -text
 dist/licenses/** -text

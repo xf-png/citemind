@@ -32,4 +32,5 @@
 .backup-actions button{display:inline-flex;gap:7px;align-items:center;font-size:11px}
 .backup-actions svg{width:13px;height:13px}
 .restore-label{display:flex;align-items:center;gap:10px;font-size:10px;color:#9ba7ba;margin-top:14px}
+.offline-section{border-top:1px solid var(--line);margin-top:22px;padding-top:20px}.offline-section h3{font-size:14px;font-weight:500;margin:7px 0}.offline-section>p{font-size:11px;color:#8491a6;line-height:1.9}.offline-section progress{width:100%;height:6px;accent-color:var(--blue)}
 @media(max-width:750px){.library-footer-actions{gap:8px}.header-actions{gap:10px}.page-controls{gap:7px}.page-controls>span{display:none}.library-stats b{font-size:17px}.backup-actions button{padding:8px 12px;font-size:10px}.dialog .save-option{padding:14px}.dialog .save-option input{right:14px}.save-option small{font-size:9px}.restore-label{flex-wrap:wrap}}
