@@ -184,24 +184,30 @@ async function importFiles(files) {
   const selected = Array.from(files); if (!selected.length) return;
   if (selected.length > 20) return toast('一次最多选择 20 份资料。');
   try {
-    for (const file of selected) { const pdf = /\.pdf$/i.test(file.name); if (!/\.(pdf|txt|md|markdown)$/i.test(file.name)) throw new Error('请使用 PDF、TXT 或 Markdown 文件。'); if (file.size > (pdf ? 10 : 1) * 1024 * 1024) throw new Error(`${file.name} 超过 ${pdf ? '10' : '1'} MB，请缩小后导入。`); }
+    for (const file of selected) { const rich = /\.(pdf|docx)$/i.test(file.name); if (!/\.(pdf|docx|txt|md|markdown)$/i.test(file.name)) throw new Error('请使用 PDF、Word DOCX、TXT 或 Markdown 文件。'); if (file.size > (rich ? 10 : 1) * 1024 * 1024) throw new Error(`${file.name} 超过 ${rich ? '10' : '1'} MB，请缩小后导入。`); }
     if (state.documents.length + selected.length > 20) throw new Error('当前页面最多保留 20 份资料，请先移除部分资料。');
     state.importing = true; state.importAbort = new AbortController(); updateControls(); $('#import-progress').hidden = false;
-    const docs = [];
+    const docs = []; const importWarnings = new Set();
     for (let index = 0; index < selected.length; index++) {
       const file = selected[index]; const signal = state.importAbort.signal;
       if (signal.aborted) throw new DOMException('已取消导入。', 'AbortError');
       $('#import-status').textContent = `正在读取 ${index + 1}/${selected.length}：${file.name}`;
-      const doc = { id: crypto.randomUUID(), title: file.name.replace(/\.(pdf|txt|md|markdown)$/i, '') };
+      const doc = { id: crypto.randomUUID(), title: file.name.replace(/\.(pdf|docx|txt|md|markdown)$/i, '') };
       if (/\.pdf$/i.test(file.name)) {
         const { parsePdfFile } = await import('./pdf.js');
         const parsed = await parsePdfFile(file, { signal, onProgress: event => { $('#import-status').textContent = `${file.name} · ${event.message || '正在解析…'}`; } });
         Object.assign(doc, { type: 'pdf', text: parsed.text, pages: parsed.pages });
+      } else if (/\.docx$/i.test(file.name)) {
+        const { parseDocxFile } = await import('./docx.js');
+        const parsed = await parseDocxFile(file, { signal, onProgress: event => { $('#import-status').textContent = `${file.name} · ${event.message || '正在提取 Word 文字…'}`; } });
+        doc.text = parsed.text;
+        parsed.warnings.forEach(warning => importWarnings.add(warning));
       } else { try { doc.text = new TextDecoder('utf-8', { fatal: true }).decode(await file.arrayBuffer()); } catch { throw new Error(`${file.name} 不是 UTF-8 文本，请转换编码后导入。`); } }
       if (signal.aborted) throw new DOMException('已取消导入。', 'AbortError');
       docs.push(doc);
     }
     addDocuments(docs);
+    if (importWarnings.size) toast(`已添加 ${docs.length} 份资料。${[...importWarnings].join('；')}，请核对提取原文。`);
   } catch (error) { toast(error.name === 'AbortError' ? '已取消导入，原有资料未改动。' : error.message); }
   finally { state.importing = false; state.importAbort = null; $('#import-progress').hidden = true; $('#file-input').value = ''; updateControls(); }
 }
