@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
+import { createHash } from 'node:crypto';
 import { serveDist } from './helpers/serve-dist.mjs';
 
 const resourceCount = JSON.parse((await readFile(new URL('../../dist/sw.js', import.meta.url), 'utf8')).match(/^const PACKAGE = (.+);$/m)[1]).assets.length;
@@ -130,5 +131,31 @@ test('Removing a waiting update also stops the active worker without recreating 
     expect(await page.evaluate(async () => (await navigator.serviceWorker.getRegistrations()).length)).toBe(0);
     expect(await page.evaluate(async () => (await fetch('./engine.js?after-removal')).ok)).toBe(true);
     expect(await page.evaluate(() => caches.keys())).toEqual([]);
+  } finally { await server.close(); }
+});
+
+test('A failed update keeps the active offline workspace usable and the current draft intact', async ({ page, context }) => {
+  test.setTimeout(120_000);
+  let upgraded = false;
+  const updatedEngine = Buffer.concat([await readFile(new URL('../../dist/engine.js', import.meta.url)), Buffer.from('\n// new release bytes\n')]);
+  const server = await serveDist((path, bytes) => {
+    if (!upgraded) return bytes;
+    if (path === '/engine.js') return Buffer.from('// incomplete new download');
+    if (path !== '/sw.js') return bytes;
+    return Buffer.from(bytes.toString().replace(/^const PACKAGE = (.+);$/m, (line, json) => {
+      const manifest = JSON.parse(json); manifest.version = 'failed-update-test'; manifest.revision += '-failed-update';
+      const engine = manifest.assets.find(asset => asset.path === 'engine.js'); engine.bytes = updatedEngine.length; engine.sha256 = createHash('sha256').update(updatedEngine).digest('hex');
+      return `const PACKAGE = ${JSON.stringify(manifest)};`;
+    }));
+  });
+  try {
+    await page.goto(server.url); await expect(page.locator('#question')).toBeEnabled(); await settings(page); await prepare(page); await closeSettings(page);
+    const previousCaches = await page.evaluate(() => caches.keys()); await page.locator('#question').fill('尚未提交的研究草稿');
+    upgraded = true; await settings(page); await page.locator('#prepare-offline').click();
+    await expect(page.locator('#toast')).toContainText('离线包未能完成', { timeout: 30_000 }); await expect(page.locator('#prepare-offline')).toBeEnabled(); await expect(page.locator('#offline-status')).toContainText('已就绪');
+    await expect(page.locator('#question')).toHaveValue('尚未提交的研究草稿'); expect(await page.evaluate(() => caches.keys())).toEqual(previousCaches);
+    expect(await page.evaluate(async () => { const reg = await navigator.serviceWorker.getRegistration(); return Boolean(reg.active) && !reg.waiting; })).toBe(true);
+    await closeSettings(page); await context.setOffline(true); await page.reload(); await expect(page.locator('#question')).toBeEnabled();
+    await page.locator('#question').fill('文档会被上传到服务器吗？'); await page.locator('#send-button').click(); await expect(page.locator('.answer-body')).toContainText('不会上传');
   } finally { await server.close(); }
 });

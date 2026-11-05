@@ -1,0 +1,48 @@
+{
+  "version": "1.5.1",
+  "verifiedLocalDate": "2026-11-06",
+  "timezone": "Asia/Shanghai",
+  "applicationCommit": "a6eba3703d585fd41360ced36f49bb596d76d152",
+  "repository": "https://github.com/xf-png/citemind",
+  "publicUrl": "https://xf-png.github.io/citemind/",
+  "offlinePackage": {
+    "revision": "58359a09cd6754e7",
+    "runtimeFingerprint": "0ff0327094e0",
+    "resources": 260,
+    "bytes": 52938955,
+    "integrity": "SHA-256 checked per resource during preparation; ready only after every resource is present"
+  },
+  "bundledThirdPartyResources": { "resources": 211, "bytes": 52237570, "verified": true },
+  "localFunctionalChecks": { "count": 39, "passed": 39 },
+  "browserChecks": {
+    "completeSuiteBeforeAdditionalScenario": { "total": 44, "passed": 43, "skipped": 1 },
+    "additionalFailedUpdateScenario": { "total": 2, "passed": 2 },
+    "combined": { "total": 46, "passed": 45, "skipped": 1 },
+    "skipReason": "Real BGE inference runs once on desktop, not again in the simulated mobile viewport",
+    "viewports": ["1440x1000", "390x844"],
+    "mobileDeviceTesting": false
+  },
+  "successfulApplicationDeployment": {
+    "runId": 42126668965,
+    "url": "https://github.com/xf-png/citemind/actions/runs/42126668965",
+    "conclusion": "success"
+  },
+  "publicBrowserChecks": {
+    "researchAndEvidenceMap": { "total": 26, "passed": 26 },
+    "desktopOffline": {
+      "total": 3,
+      "passed": 3,
+      "scenarios": [
+        "Prepare from the public site, reload without network, retrieve, annotate and persist notes",
+        "Reload without network, load the actual BGE q8 model and retrieve privacy evidence",
+        "Import an actual two-page PDF without network and open its second-page citation"
+      ]
+    }
+  },
+  "limits": [
+    "A test of one machine and network does not guarantee access on every device or network",
+    "A simulated mobile viewport is not physical Android or iOS validation",
+    "Real model execution is not a human-labelled retrieval accuracy evaluation",
+    "Evidence connections describe collected records, not semantic inference or fact checking"
+  ]
+}
