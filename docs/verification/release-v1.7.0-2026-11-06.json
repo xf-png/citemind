@@ -1,0 +1,29 @@
+{
+  "version": "1.7.0",
+  "verifiedLocalDate": "2026-11-06",
+  "timezone": "Asia/Shanghai",
+  "applicationCommit": "2eba38a3afc3860d41dfcac1f3ab0cc1c0620921",
+  "repository": "https://github.com/xf-png/citemind",
+  "publicUrl": "https://xf-png.github.io/citemind/",
+  "offlinePackage": { "revision": "0944ff280ec13c1a", "runtimeFingerprint": "fe9fb880016c", "resources": 264, "bytes": 52974793 },
+  "functionalChecks": { "total": 48, "passed": 48 },
+  "browserChecks": { "total": 64, "passed": 63, "skipped": 1, "skipReason": "Real BGE inference runs once on desktop, not again in the mobile viewport" },
+  "successfulDeployment": { "runId": 42132604976, "url": "https://github.com/xf-png/citemind/actions/runs/42132604976", "conclusion": "success" },
+  "publicBrowserChecks": {
+    "coreFlows": { "total": 30, "passed": 30, "scope": "Research reports, notes, comparison and evidence maps on desktop and a simulated mobile layout" },
+    "desktopOfflineWordToPortableReport": {
+      "passed": true,
+      "verifiedAt": "2026-11-05T23:57:01.914Z",
+      "preparationSeconds": 100,
+      "preparationTimeoutSeconds": 240,
+      "actualOfflineWordImport": true,
+      "offlineReportGeneration": true,
+      "standaloneLocalFileReading": true,
+      "exactHighlight": true,
+      "externalRequestsFromReport": [],
+      "browserErrors": [],
+      "scope": "Prepare from the actual public origin, disable network, reload, import python-docx file, retrieve and collect evidence, annotate, export HTML including source text, open the downloaded local file without network and follow its exact source highlight"
+    }
+  },
+  "limits": ["Mobile is a simulated viewport, not physical Android or iOS", "Matching source text does not establish factual truth or original-file authenticity", "No human-labelled retrieval accuracy measurement", "Print CSS is included; exported PDF pagination and physical printers were not validated", "Preparation times describe this network and machine only"]
+}

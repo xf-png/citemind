@@ -2,13 +2,16 @@
 export function mountOfflineControls({ toast }) {
   const $ = selector => document.querySelector(selector);
   const template = document.createElement('template');
-  template.innerHTML = `<section class="offline-section"><span class="eyebrow">YOUR WORKSPACE, EVEN OFFLINE</span><h3>把工作台，也留在设备上</h3><p>完整离线包约 53 MB，包含网页、PDF 组件和本地 AI。准备完成后，可断网重新打开此地址。资料和笔记仍需单独开启本地保存或导出备份。</p><div class="backup-actions"><button id="prepare-offline" class="secondary-button">准备完整离线包</button><button id="clear-offline" class="text-button" hidden>移除离线包</button></div><p id="offline-status" class="storage-status" role="status">尚未准备离线包。</p><progress id="offline-progress" hidden max="100"></progress></section>`;
+  template.innerHTML = `<section class="offline-section"><span class="eyebrow">YOUR WORKSPACE, EVEN OFFLINE</span><h3>把工作台，也留在设备上</h3><p>完整离线包约 53 MB，包含网页、PDF 组件和本地 AI。准备完成后，可断网重新打开此地址。较大的 AI 组件可能需要多等一会儿；准备期间可关闭此窗口继续工作。资料和笔记仍需单独开启本地保存或导出备份。</p><div class="backup-actions"><button id="prepare-offline" class="secondary-button">准备完整离线包</button><button id="cancel-offline" class="text-button" hidden>取消本次准备</button><button id="clear-offline" class="text-button" hidden>移除离线包</button></div><p id="offline-status" class="storage-status" role="status">尚未准备离线包。</p><progress id="offline-progress" hidden max="100"></progress></section>`;
   $('#library-dialog .backup-section').after(template.content);
   const supported = globalThis.isSecureContext && 'serviceWorker' in navigator && 'caches' in globalThis;
   const workerURL = new URL('./sw.js', import.meta.url);
   const scopeURL = new URL('./', import.meta.url);
   let busy = false;
   let poll;
+  let prepareWorker = null;
+  let cancelled = false;
+  const category = path => path.startsWith('models/') ? '中文 AI 模型' : path.includes('pdfjs') ? 'PDF 组件' : path.startsWith('vendor/') ? 'AI 运行组件' : '页面组件';
   function ours(registration) { return [registration?.active, registration?.waiting, registration?.installing].some(worker => worker?.scriptURL === workerURL.href); }
   async function registration() { const reg = supported ? await navigator.serviceWorker.getRegistration(scopeURL.href) : null; return ours(reg) ? reg : null; }
   function message(worker, type, timeout = 10_000) {
@@ -29,7 +32,8 @@ export function mountOfflineControls({ toast }) {
       $('#prepare-offline').textContent = ready ? '检查离线包更新' : '准备完整离线包';
       $('#offline-progress').hidden = !busy;
       $('#offline-progress').value = Math.round(status.completed / status.resources * 100);
-      $('#offline-status').textContent = reg.waiting && ready ? `新版离线包 ${status.version} 已准备。保存资料后，关闭本站所有页面并重开以启用。` : ready ? `离线包 ${status.version} 已就绪 · ${status.resources} 项资源 · ${(status.totalBytes / 1024 / 1024).toFixed(1)} MB。资料请另行保存。` : status.preparing ? `正在准备离线包：${status.completed} / ${status.resources} 项 · ${(status.bytes / 1024 / 1024).toFixed(1)} MB。` : '离线包不完整，请重新准备。';
+      const current = [...new Set((status.currentAssets || []).map(category))].join('、');
+      $('#offline-status').textContent = reg.waiting && ready ? `新版离线包 ${status.version} 已准备。保存资料后，关闭本站所有页面并重开以启用。` : ready ? `离线包 ${status.version} 已就绪 · ${status.resources} 项资源 · ${(status.totalBytes / 1024 / 1024).toFixed(1)} MB。资料请另行保存。` : status.preparing ? `正在准备离线包：${status.completed} / ${status.resources} 项 · 已校验 ${(status.bytes / 1024 / 1024).toFixed(1)} MB${current ? ` · 当前：${current}` : ''}。` : '离线包不完整，请重新准备。';
     } catch (error) { if (!busy) $('#offline-status').textContent = error.message; }
   }
   function installed(worker) {
@@ -44,20 +48,27 @@ export function mountOfflineControls({ toast }) {
   }
   $('#prepare-offline').addEventListener('click', async () => {
     if (busy || !supported) return;
-    busy = true; $('#prepare-offline').disabled = true; $('#clear-offline').disabled = true; $('#offline-progress').hidden = false; $('#offline-progress').removeAttribute('value'); $('#offline-status').textContent = '正在准备完整离线包，请保持此页面打开…';
+    busy = true; cancelled = false; prepareWorker = null; $('#prepare-offline').disabled = true; $('#clear-offline').disabled = true; $('#cancel-offline').hidden = false; $('#cancel-offline').disabled = true; $('#offline-progress').hidden = false; $('#offline-progress').removeAttribute('value'); $('#offline-status').textContent = '正在准备完整离线包，请保持此页面打开…';
     poll = setInterval(refresh, 700);
+    async function waitForInstall(worker) { prepareWorker = worker; $('#cancel-offline').disabled = false; await installed(worker); }
     try {
       const reg = await navigator.serviceWorker.register(workerURL.href, { scope: scopeURL.href, updateViaCache: 'none' });
-      if (reg.installing) await installed(reg.installing);
+      if (reg.installing) await waitForInstall(reg.installing);
       else {
         await reg.update();
-        if (reg.installing) await installed(reg.installing);
+        if (reg.installing) await waitForInstall(reg.installing);
         else if (reg.waiting) await installed(reg.waiting);
-        else if (reg.active) await message(reg.active, 'CITEMIND_OFFLINE_PREPARE', 600_000);
+        else if (reg.active) { prepareWorker = reg.active; $('#cancel-offline').disabled = false; await message(reg.active, 'CITEMIND_OFFLINE_PREPARE', 600_000); }
       }
       toast('离线包已准备完成。资料和研究笔记请另行保存。');
-    } catch (error) { $('#offline-status').textContent = error.message; toast(error.message); }
-    finally { busy = false; clearInterval(poll); $('#prepare-offline').disabled = false; $('#clear-offline').disabled = false; $('#offline-progress').hidden = true; await refresh(); }
+    } catch (error) { const text = cancelled ? '已取消本次准备，原有资料和已就绪的离线版本保留。' : error.message; $('#offline-status').textContent = text; toast(text); }
+    finally { busy = false; prepareWorker = null; clearInterval(poll); $('#prepare-offline').disabled = false; $('#clear-offline').disabled = false; $('#cancel-offline').hidden = true; $('#offline-progress').hidden = true; await refresh(); }
+  });
+  $('#cancel-offline').addEventListener('click', async () => {
+    if (!busy || !prepareWorker || cancelled) return;
+    const worker = prepareWorker; cancelled = true; $('#cancel-offline').disabled = true;
+    try { await message(worker, 'CITEMIND_OFFLINE_CANCEL'); }
+    catch (error) { if (worker.state !== 'redundant') toast(error.message); }
   });
   $('#clear-offline').addEventListener('click', async () => {
     if (busy) return;

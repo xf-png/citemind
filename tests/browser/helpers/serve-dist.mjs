@@ -11,7 +11,7 @@ export async function serveDist(transform = (path, bytes) => bytes, { cacheContr
       const url = new URL(request.url, 'http://localhost'); const path = decodeURIComponent(url.pathname);
       const file = resolve(root, '.' + (path === '/' ? '/index.html' : path));
       if (!file.startsWith(root.endsWith(sep) ? root : root + sep)) { response.writeHead(403).end(); return; }
-      const bytes = transform(path, await readFile(file), url);
+      const bytes = await transform(path, await readFile(file), url);
       if (bytes === null) { response.writeHead(503).end(); return; }
       const mime = { '.js': 'application/javascript', '.mjs': 'application/javascript', '.css': 'text/css', '.html': 'text/html', '.wasm': 'application/wasm', '.json': 'application/json', '.svg': 'image/svg+xml' }[extname(file)] || 'application/octet-stream';
       response.writeHead(200, { 'Content-Type': mime, 'Cache-Control': cacheControl(path, url) }); response.end(bytes);

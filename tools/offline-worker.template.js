@@ -10,6 +10,8 @@ let progress = { completed: 0, bytes: 0 };
 let preparing = null;
 let controller = null;
 let disabled = false;
+let cancelled = false;
+const currentAssets = new Set();
 
 async function packageReady() {
   if (!(await caches.has(cacheName))) return false;
@@ -23,39 +25,44 @@ async function preparePackage() {
   if (preparing) return preparing;
   preparing = (async () => {
     disabled = false;
+    cancelled = false;
     if (await packageReady()) return;
     controller = new AbortController();
+    if (cancelled) controller.abort();
     const signal = controller.signal;
     const cache = await caches.open(cacheName);
     const previousCaches = await Promise.all((await caches.keys()).filter(name => name.startsWith(prefix) && name !== cacheName).map(name => caches.open(name)));
     await cache.delete(markerURL);
-    progress = { completed: 0, bytes: 0 };
+    progress = { completed: 0, bytes: 0 }; currentAssets.clear();
     let next = 0;
     const download = async () => {
       while (next < PACKAGE.assets.length) {
         if (signal.aborted) throw new Error('离线包准备已取消。');
         const index = next++; const asset = PACKAGE.assets[index]; const url = assetURLs[index];
-        let response;
-        async function verified(candidate) {
-          if (!candidate?.ok || candidate.type === 'opaque') return false;
-          const bytes = await candidate.clone().arrayBuffer();
-          if (bytes.byteLength !== asset.bytes) return false;
-          const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(value => value.toString(16).padStart(2, '0')).join('');
-          return hash === asset.sha256;
-        }
-        // Reuse unchanged bytes from an older package only after rechecking
-        // their SHA-256. App updates need not redownload the 47 MB AI runtime.
-        for (const previous of previousCaches) {
-          const candidate = await previous.match(url);
-          if (await verified(candidate)) { response = candidate; break; }
-        }
-        if (!response) {
-          response = await fetch(url, { cache: 'reload', credentials: 'same-origin', signal });
-          if (!(await verified(response))) throw new Error(`下载或资源校验失败：${asset.path}`);
-        }
-        if (signal.aborted) throw new Error('离线包准备已取消。');
-        await cache.put(url, response);
-        progress.completed++; progress.bytes += asset.bytes;
+        currentAssets.add(asset.path);
+        try {
+          let response;
+          async function verified(candidate) {
+            if (!candidate?.ok || candidate.type === 'opaque') return false;
+            const bytes = await candidate.clone().arrayBuffer();
+            if (bytes.byteLength !== asset.bytes) return false;
+            const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))].map(value => value.toString(16).padStart(2, '0')).join('');
+            return hash === asset.sha256;
+          }
+          // Reuse unchanged bytes from an older package only after rechecking
+          // their SHA-256. App updates need not redownload the 47 MB AI runtime.
+          for (const previous of previousCaches) {
+            const candidate = await previous.match(url);
+            if (await verified(candidate)) { response = candidate; break; }
+          }
+          if (!response) {
+            response = await fetch(url, { cache: 'reload', credentials: 'same-origin', signal });
+            if (!(await verified(response))) throw new Error(`下载或资源校验失败：${asset.path}`);
+          }
+          if (signal.aborted) throw new Error('离线包准备已取消。');
+          await cache.put(url, response);
+          progress.completed++; progress.bytes += asset.bytes;
+        } finally { currentAssets.delete(asset.path); }
       }
     };
     try {
@@ -98,9 +105,14 @@ self.addEventListener('message', event => {
     try {
       if (event.data?.type === 'CITEMIND_OFFLINE_STATUS') {
         const ready = await packageReady();
-        reply({ ready, preparing: Boolean(preparing), version: PACKAGE.version, resources: PACKAGE.assets.length, totalBytes: PACKAGE.bytes, completed: ready ? PACKAGE.assets.length : progress.completed, bytes: ready ? PACKAGE.bytes : progress.bytes });
+        reply({ ready, preparing: Boolean(preparing), version: PACKAGE.version, resources: PACKAGE.assets.length, totalBytes: PACKAGE.bytes, completed: ready ? PACKAGE.assets.length : progress.completed, bytes: ready ? PACKAGE.bytes : progress.bytes, currentAssets: [...currentAssets] });
       } else if (event.data?.type === 'CITEMIND_OFFLINE_PREPARE') {
         await preparePackage(); reply({ ready: true });
+      } else if (event.data?.type === 'CITEMIND_OFFLINE_CANCEL') {
+        const wasPreparing = Boolean(preparing);
+        cancelled = true; controller?.abort();
+        if (preparing) await preparing.catch(() => {});
+        reply({ cancelled: wasPreparing });
       } else if (event.data?.type === 'CITEMIND_OFFLINE_CLEAR') {
         disabled = true; controller?.abort();
         if (preparing) await preparing.catch(() => {});
