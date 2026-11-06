@@ -10,7 +10,7 @@
 
 准备进度显示已校验的资源数量、大小和当前组件。下载较大的 AI 文件时，可以关闭设置窗口继续检索，也可以取消本次准备；取消更新会保留已就绪的旧版本、资料、笔记和未发送草稿。
 
-[设计与取消验证](docs/离线准备与v1.8实现.md) · [准备中的界面](docs/screenshots/offline-preparation.png)
+[设计与取消验证](docs/离线准备与v1.8实现.md) · [准备中的界面](docs/screenshots/offline-preparation.png) · [公开网站与发布验证](docs/verification/release-v1.8.0-2026-11-06.json)
 
 ## v1.7：让研究成果独立阅读
 
